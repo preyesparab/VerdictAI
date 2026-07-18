@@ -1,0 +1,32 @@
+{
+  "case_id": "nutriforge_register_login_reused",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Reused from Phase 25-29's own ground-truth work: register's password-length check is correct, and login's lastLoginAt/save() is safe because the existing guard clause (if (!user || !(await user.matchPassword(password))) { return res.status(401)...}) already intercepts any unmatched user before user.lastLoginAt is reached - confirmed live in Phase 28 by running the real, unmodified, diff-applied login handler and observing it return 401 without throwing.",
+  "sandbox_language": "javascript",
+  "is_real_repo_case": true,
+  "repo": "preyesparab/NutriForge",
+  "repo_copy_source": "data/repositories/preyesparab_NutriForge/server",
+  "repo_copy_dest_relative": "server",
+  "diff_file": "nutriforge_register_login.diff",
+  "sandbox_stubs": {
+    "server/src/models/User.js": "module.exports = {\n  findOne() {\n    return { select() { return Promise.resolve(null); } };\n  },\n};\n",
+    "node_modules/jsonwebtoken/index.js": "module.exports = { sign: () => 'stub-token' };\n"
+  },
+  "context_bundle": {
+    "changed_functions": [
+      {"file_path": "server/src/controllers/auth.controller.js", "function_name": "register", "class_name": null, "start_line": 21, "end_line": 24},
+      {"file_path": "server/src/controllers/auth.controller.js", "function_name": "login", "class_name": null, "start_line": 44, "end_line": 49}
+    ],
+    "callers": [
+      {"file_path": "client/src/pages/Register.jsx", "function_name": "Register", "class_name": null, "node_kind": "chunk"},
+      {"file_path": "client/src/pages/Register.jsx", "function_name": "handleSubmit", "class_name": null, "node_kind": "chunk"},
+      {"file_path": "client/src/pages/Login.jsx", "function_name": "Login", "class_name": null, "node_kind": "chunk"},
+      {"file_path": "client/src/pages/Login.jsx", "function_name": "handleSubmit", "class_name": null, "node_kind": "chunk"},
+      {"file_path": "server/src/routes/auth.routes.js", "function_name": null, "class_name": null, "node_kind": "file"}
+    ],
+    "callees": [
+      {"file_path": "server/src/controllers/auth.controller.js", "function_name": "sendToken", "class_name": null, "node_kind": "chunk"}
+    ],
+    "related_tests": []
+  }
+}

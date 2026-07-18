@@ -1,0 +1,37 @@
+/*
+  CSS custom properties read exclusively by components/Graph/graphStyle.js
+  via getComputedStyle - Cytoscape renders to a <canvas>, so it never
+  resolves Tailwind's utility classes or any other CSS on its own; these
+  are the only styling values that need to exist as real CSS variables
+  rather than Tailwind classes in JSX. Values are hand-matched to the
+  Tailwind palette used everywhere else (slate/indigo/violet/amber) so
+  the graph reads as part of the same design, not a different one.
+*/
+
+:root {
+  /* Edge colors (ui/graph_view.py's _EDGE_STYLE, same mapping, new palette) */
+  --color-accent: #6366f1; /* indigo-500 - function_call / method_call edges */
+  --color-accent-secondary: #7c3aed; /* violet-600 - inherits edges */
+  --color-border: #334155; /* slate-700 - contains edges */
+  --color-border-muted: #1e293b; /* slate-800 - default/unstyled edge fallback */
+  --color-text: #f8fafc; /* slate-50 - node labels */
+  --color-text-muted: #94a3b8; /* slate-400 - imports edges */
+
+  /* Node fills */
+  --color-node-file: #1e293b; /* slate-800 - file nodes, distinct structural anchor */
+  --color-focus: #fbbf24; /* amber-400 - blast-radius focus/neighbor highlight */
+
+  /* Deterministic file_path -> palette color (components/Graph/graphStyle.js's colorForFile) */
+  --color-file-0: #6366f1;
+  --color-file-1: #a855f7;
+  --color-file-2: #22c55e;
+  --color-file-3: #ef4444;
+  --color-file-4: #eab308;
+  --color-file-5: #06b6d4;
+  --color-file-6: #ec4899;
+  --color-file-7: #14b8a6;
+  --color-file-8: #d946ef;
+  --color-file-9: #f97316;
+  --color-file-10: #84cc16;
+  --color-file-11: #f59e0b;
+}

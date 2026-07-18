@@ -1,0 +1,15 @@
+{
+  "case_id": "type_mismatch_fixed",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Called with the correct int type. Verified directly: mypy reports zero errors on this exact file.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "pricing.py",
+  "target_file_content": "def total_price(price: int, quantity: int) -> int:\n    return price * quantity\n\nresult = total_price(10, 5)\n",
+  "diff": "--- /dev/null\n+++ b/pricing.py\n@@ -0,0 +1,4 @@\n+def total_price(price: int, quantity: int) -> int:\n+    return price * quantity\n+\n+result = total_price(10, 5)\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "pricing.py", "function_name": "total_price", "class_name": null, "start_line": 1, "end_line": 4}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

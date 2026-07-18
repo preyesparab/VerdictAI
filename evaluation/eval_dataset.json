@@ -1,0 +1,79 @@
+[
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does the hmm function do?",
+    "expected_answer": "It calls helpers.get_answer(); if that returns a truthy value, it prints the result of get_hmm().",
+    "expected_source_files": ["sample/core.py"],
+    "expected_functions": ["hmm"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does the get_hmm function return?",
+    "expected_answer": "It returns the string 'hmmm...'.",
+    "expected_source_files": ["sample/core.py"],
+    "expected_functions": ["get_hmm"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does get_answer return?",
+    "expected_answer": "It always returns True.",
+    "expected_source_files": ["sample/helpers.py"],
+    "expected_functions": ["get_answer"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "Which module does the hmm function call to get an answer?",
+    "expected_answer": "It calls get_answer from the sample.helpers module.",
+    "expected_source_files": ["sample/core.py", "sample/helpers.py"],
+    "expected_functions": ["hmm", "get_answer"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does the sample package's __init__.py expose?",
+    "expected_answer": "It imports and re-exports the hmm function from sample.core.",
+    "expected_source_files": ["sample/__init__.py"],
+    "expected_functions": ["hmm"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does the AdvancedTestSuite.test_thoughts test verify?",
+    "expected_answer": "It asserts that calling sample.hmm() returns None.",
+    "expected_source_files": ["tests/test_advanced.py"],
+    "expected_functions": ["test_thoughts"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does BasicTestSuite.test_absolute_truth_and_meaning check?",
+    "expected_answer": "It is a trivial test that asserts True is true.",
+    "expected_source_files": ["tests/test_basic.py"],
+    "expected_functions": ["test_absolute_truth_and_meaning"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "What does the docstring of get_hmm say?",
+    "expected_answer": "\"Get a thought.\"",
+    "expected_source_files": ["sample/core.py"],
+    "expected_functions": ["get_hmm"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "Under what condition does hmm print anything?",
+    "expected_answer": "Only when helpers.get_answer() returns a truthy value.",
+    "expected_source_files": ["sample/core.py", "sample/helpers.py"],
+    "expected_functions": ["hmm", "get_answer"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "Which class contains the test_thoughts test method?",
+    "expected_answer": "The AdvancedTestSuite class.",
+    "expected_source_files": ["tests/test_advanced.py"],
+    "expected_functions": ["test_thoughts"]
+  },
+  {
+    "repository_id": "39130459-d508-59d5-ae9d-b4f12627477a",
+    "query": "How does this repository implement user authentication?",
+    "expected_answer": "The repository does not contain enough information to answer this question.",
+    "expected_source_files": [],
+    "expected_functions": []
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "repo": "preyesparab/NutriForge",
+  "repo_id": "1b50d550-5a86-5cab-8913-d27a4f8df393",
+  "diff_summary": "register: adds a password-length (>=8) validation check; login: adds user.lastLoginAt = new Date() + await user.save() after successful auth",
+  "provenance": "Real Prosecutor structured-claims output, Phase 27, provider=gemini-2.5-flash-lite, captured 2026-07-07 (see docs/state/PROGRESS.md's Phase 27 entry). Verbatim, not paraphrased or hand-edited.",
+  "claims": [
+    {
+      "claim_type": "untested_branch",
+      "location": "server/src/controllers/auth.controller.js:22",
+      "assertion": "The new password length validation in the register function is not covered by any tests.",
+      "proposed_test": "it('should return 400 if password is less than 8 characters', async () => {\n  const res = await request(app).post('/api/auth/register').send({\n    name: 'Test User',\n    email: 'test@example.com',\n    password: 'short',\n    fitnessGoal: 'lose weight'\n  });\n  expect(res.statusCode).toBe(400);\n  expect(res.body.message).toBe('Password must be at least 8 characters');\n});"
+    },
+    {
+      "claim_type": "untested_branch",
+      "location": "server/src/controllers/auth.controller.js:47",
+      "assertion": "The update to the user's `lastLoginAt` field in the login function is not covered by any tests.",
+      "proposed_test": "it('should update lastLoginAt on successful login', async () => {\n  await User.create({\n    name: 'Test User',\n    email: 'test@example.com',\n    password: 'password123'\n  });\n  const res = await request(app).post('/api/auth/login').send({\n    email: 'test@example.com',\n    password: 'password123'\n  });\n  expect(res.statusCode).toBe(200);\n  const user = await User.findOne({ email: 'test@example.com' });\n  expect(user.lastLoginAt).not.toBeNull();\n});"
+    }
+  ]
+}

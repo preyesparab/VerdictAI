@@ -1,0 +1,26 @@
+{
+  "case_id": "colorama_reset_all_reused",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Reused from Phase 27's own ground-truth work: wrapping the existing reset_all() call in try/except OSError: pass does not introduce a functional defect - nothing crashes, no behavior regresses. It is at most a code-quality gray area (a broader-than-necessary except clause), not a bug, so it is labeled clean for this benchmark's quantitative metrics; noted explicitly as the one case where 'not buggy' is a judgment call, not as clear-cut as the others.",
+  "sandbox_language": "python",
+  "is_real_repo_case": true,
+  "repo": "tartley/colorama",
+  "repo_copy_source": "data/repositories/tartley_colorama/colorama",
+  "repo_copy_dest_relative": "colorama",
+  "diff_file": "colorama_reset_all.diff",
+  "sandbox_stubs": {},
+  "context_bundle": {
+    "changed_functions": [
+      {"file_path": "colorama/initialise.py", "function_name": "reset_all", "class_name": null, "start_line": 28, "end_line": 33}
+    ],
+    "callers": [
+      {"file_path": "colorama/tests/winterm_test.py", "function_name": "testResetAll", "class_name": "WinTermTest", "node_kind": "chunk"},
+      {"file_path": "colorama/tests/ansitowin32_test.py", "function_name": "test_reset_all_shouldnt_raise_on_closed_orig_stdout", "class_name": "AnsiToWin32Test", "node_kind": "chunk"}
+    ],
+    "callees": [],
+    "related_tests": [
+      {"file_path": "colorama/tests/winterm_test.py", "function_name": "testResetAll", "found_via": "graph"},
+      {"file_path": "colorama/tests/ansitowin32_test.py", "function_name": "test_reset_all_shouldnt_raise_on_closed_orig_stdout", "found_via": "graph"}
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+diff --git a/colorama/initialise.py b/colorama/initialise.py
+index 6e01026..629f675 100644
+--- a/colorama/initialise.py
++++ b/colorama/initialise.py
+@@ -27,7 +27,10 @@ def _wipe_internal_state_for_tests():
+ 
+ def reset_all():
+     if AnsiToWin32 is not None:    # Issue #74: objects might become None at exit
+-        AnsiToWin32(orig_stdout).reset_all()
++        try:
++            AnsiToWin32(orig_stdout).reset_all()
++        except OSError:
++            pass
+ 
+ 
+ def init(autoreset=False, convert=None, strip=None, wrap=True):

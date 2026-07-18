@@ -1,0 +1,11 @@
+# RepoMind local development stack
+# Minimal scaffold — additional services (vector store, graph store) will be
+# added as those components are implemented and approved.
+
+services:
+  app:
+    build: .
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env

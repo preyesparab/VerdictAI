@@ -1,0 +1,15 @@
+{
+  "case_id": "mutable_default_fixed",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Uses a None sentinel and creates a fresh list per call - the correct pattern. Verified directly: append_item(1) then append_item(2) returns [2] for the second call, as expected.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "appender.py",
+  "target_file_content": "def append_item(item, target=None):\n    if target is None:\n        target = []\n    target.append(item)\n    return target\n",
+  "diff": "--- /dev/null\n+++ b/appender.py\n@@ -0,0 +1,5 @@\n+def append_item(item, target=None):\n+    if target is None:\n+        target = []\n+    target.append(item)\n+    return target\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "appender.py", "function_name": "append_item", "class_name": null, "start_line": 1, "end_line": 5}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

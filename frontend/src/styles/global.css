@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  tokens.css is imported separately (see main.jsx) - it only defines CSS
+  custom properties (vis-network draws to a <canvas> and never resolves
+  Tailwind's utility classes, only real CSS custom properties read via
+  getComputedStyle - see components/Graph/visStyle.js's own docstring).
+  Everything else in the app is styled with Tailwind utility classes
+  directly in JSX; this file only adds the handful of base rules
+  Tailwind's preflight doesn't cover.
+*/
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-50 antialiased;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: theme("colors.slate.700");
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: theme("colors.slate.600");
+  }
+
+  /* Slow, independent drift for LandingView's ambient background blobs (AmbientBackground.jsx). */
+  @keyframes rm-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(40px, -50px) scale(1.08); }
+  }
+  @keyframes rm-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-50px, 35px) scale(1.05); }
+  }
+  @keyframes rm-drift-c {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, 45px) scale(1.1); }
+  }
+  .animate-rm-drift-a { animation: rm-drift-a 22s ease-in-out infinite; }
+  .animate-rm-drift-b { animation: rm-drift-b 26s ease-in-out infinite; }
+  .animate-rm-drift-c { animation: rm-drift-c 19s ease-in-out infinite; }
+
+  /* ReviewView's card feed (Phase 32 Part 2) - each card fades/slides in once as it mounts,
+     runs automatically on DOM insertion (no JS mount-state needed) since a new SSE event
+     always renders a genuinely new card, never a re-render of an existing one. */
+  @keyframes rm-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-rm-card-in { animation: rm-card-in 400ms ease-out both; }
+}

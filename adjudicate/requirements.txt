@@ -1,0 +1,20 @@
+# Adjudicate-specific dependencies (Phase 23).
+#
+# Kept separate from the root requirements.txt deliberately: the core
+# RepoMind RAG/chat service (indexing, retrieval, the FastAPI backend,
+# the Streamlit UI) never needs sandboxing or static-analysis tooling,
+# and installing this file is only required for whoever runs the
+# Adjudicate review agents. Install alongside the root file:
+#   pip install -r requirements.txt -r adjudicate/requirements.txt
+#
+# Phase 28 — Verifier
+#
+# Sandboxing: no `docker` SDK yet - Docker is not set up in this
+# environment, so Phase 28 uses `subprocess` (hard timeout, best-effort
+# network denial) instead. Flagged in docs/state/PROGRESS.md as a
+# follow-up for real OS-level isolation, not blocked on now.
+bandit>=1.7,<2
+mypy>=1.10,<2
+
+# Phase 32 (Benchmark): none anticipated beyond the root file's
+# `pytest`/`matplotlib`, unless a benchmark dataset format needs one.

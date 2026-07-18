@@ -1,0 +1,15 @@
+{
+  "case_id": "off_by_one_fixed",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "items[-n:] correctly returns the last n items. Verified directly: last_n_items([1,2,3,4,5], 3) returns [3, 4, 5], as expected.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "lastn.py",
+  "target_file_content": "def last_n_items(items, n):\n    return items[-n:]\n",
+  "diff": "--- /dev/null\n+++ b/lastn.py\n@@ -0,0 +1,2 @@\n+def last_n_items(items, n):\n+    return items[-n:]\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "lastn.py", "function_name": "last_n_items", "class_name": null, "start_line": 1, "end_line": 2}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

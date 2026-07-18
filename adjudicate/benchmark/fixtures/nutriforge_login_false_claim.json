@@ -1,0 +1,18 @@
+{
+  "repo": "preyesparab/NutriForge",
+  "repo_id": "1b50d550-5a86-5cab-8913-d27a4f8df393",
+  "diff_file": "nutriforge_register_login.diff",
+  "provenance": "This is NOT a raw LLM capture - Phase 26's real Prosecutor free-text output raised this exact concern ('There are no explicit checks to ensure that user is not null or undefined before attempting to access its properties and call the save method. If User.findOne({ email }) returns null, this would result in a runtime error.'), but it did not recur verbatim in a live Phase 27 structured-claims run when re-tried. Constructed here as the session's own ground-truth test case for Phase 28's Verifier, per docs/state/PROGRESS.md's Phase 26/27 entries: a well-formed, structurally valid claim that is nonetheless FALSE, because the diff's own context lines already show a guard clause (`if (!user || !(await user.matchPassword(password))) { return res.status(401)...}`) immediately above the code this claim is about - `user` can never be null by the time `user.lastLoginAt = ...` executes. The proposed_test below is newly authored for Phase 28 (the original hand-constructed Phase 27 illustration used a non-functional placeholder comment, not real runnable code) - it is a genuine, executable Node.js script (no test framework - NutriForge has zero test infrastructure installed, confirmed in Phase 25) that calls the REAL, unmodified, diff-applied `login` handler with a request for an email that matches no user, and asserts it returns 401 without throwing.",
+  "sandbox_language": "javascript",
+  "sandbox_entry_relative_path": "server/src/controllers/auth.controller.js",
+  "sandbox_stubs": {
+    "server/src/models/User.js": "module.exports = {\n  findOne() {\n    return { select() { return Promise.resolve(null); } };\n  },\n};\n",
+    "node_modules/jsonwebtoken/index.js": "module.exports = { sign: () => 'stub-token' };\n"
+  },
+  "claim": {
+    "claim_type": "missing_null_check",
+    "location": "server/src/controllers/auth.controller.js:47",
+    "assertion": "There are no explicit checks to ensure that user is not null or undefined before attempting to access its properties and call the save method. If User.findOne({ email }) returns null, this would result in a runtime error.",
+    "proposed_test": "const assert = require('assert');\nconst { login } = require('./server/src/controllers/auth.controller.js');\n\nconst res = {\n  _status: null,\n  status(code) { this._status = code; return this; },\n  json(body) { this._body = body; return this; },\n};\nconst req = { body: { email: 'unknown@example.com', password: 'whatever' } };\n\nlogin(req, res)\n  .then(() => {\n    assert.strictEqual(res._status, 401, 'expected 401 for an unmatched email, got ' + res._status);\n    console.log('PASS: login returned 401 without throwing when no user matched - the missing-null-check claim is unfounded');\n    process.exit(0);\n  })\n  .catch((err) => {\n    console.error('FAIL:', (err && err.message) || err);\n    process.exit(1);\n  });\n"
+  }
+}

@@ -1,0 +1,76 @@
+# Phase 1 — Core Foundation
+# Only dependencies required for config, logging, exceptions, and constants.
+pydantic>=2.6,<3
+pydantic-settings>=2.2,<3
+python-dotenv>=1.0,<2
+
+# Phase 2 — Repository Management Layer
+# Requires the system `git` executable to be installed and on PATH.
+GitPython>=3.1,<4
+
+# Phase 4 — Tree-sitter AST Parsing
+tree-sitter>=0.23,<0.24
+tree-sitter-python>=0.23,<0.24
+tree-sitter-javascript>=0.23,<0.24
+
+# Phase 6 — Repository Knowledge Graph Construction
+networkx>=3.2,<4
+
+# Phase 7 — SQLite Storage Layer
+SQLAlchemy>=2.0,<3
+
+# Phase 8 — Embedding Generation
+sentence-transformers>=3.0,<4
+numpy>=1.26,<2
+# torch is a transitive dep of sentence-transformers, but pinned explicitly
+# here: transformers>=5 refuses (CVE-2025-32434) to torch.load non-
+# safetensors weights (e.g. microsoft/codebert-base) on torch<2.6.
+torch>=2.6,<3
+
+# Phase 9 — FAISS Vector Index
+faiss-cpu>=1.8,<2
+
+# Phase 10 — BM25 Sparse Retrieval
+rank-bm25>=0.2,<0.3
+
+# Phase 16 — LLM Integration (Gemini as the default hosted provider)
+ollama>=0.3,<1
+google-genai>=1.0,<3
+
+# Phase 27 follow-up — Groq as a hosted fallback for Gemini free-tier quota exhaustion
+groq>=0.11,<1
+
+# Phase 17 — Evaluation Framework
+matplotlib>=3.8,<4
+#
+# `ragas` is intentionally NOT pinned here. It is only ever imported
+# lazily, inside evaluation/ragas_eval.py's `_run_ragas_evaluate` - every
+# other evaluation module (and that module's own dataset-building/error-
+# wrapping logic) works and is fully unit-testable without it installed.
+#
+# At the time this phase was implemented, the latest release (ragas
+# 0.4.3) failed to even import against this project's other installed
+# packages (`from langchain_community.chat_models.vertexai import
+# ChatVertexAI` - a module langchain-community has since removed), and an
+# older, compatible ragas (0.1.21) requires downgrading langchain/
+# langchain-core/langchain-community/openai to versions that conflict
+# with this environment's other installed tooling. Whoever actually runs
+# evaluation.ragas_eval for real RAGAS scoring should install a known-
+# compatible combination in an isolated environment, e.g.:
+#     pip install "ragas==0.1.21" "langchain<0.3" "langchain-community<0.3"
+# rather than adding it to this shared requirements.txt.
+
+# Phase 18 — Streamlit UI
+streamlit>=1.38,<2
+
+# Phase 20 — FastAPI Backend
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+httpx>=0.27,<1
+
+# Phase 21 — Graph Rendering Service (Streamlit graph tab)
+streamlit-agraph>=0.0.45,<1
+
+# Testing
+pytest>=8.0,<9
+pytest-mock>=3.14,<4

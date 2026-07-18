@@ -1,0 +1,15 @@
+{
+  "case_id": "null_check_bug_reused",
+  "ground_truth_buggy": true,
+  "ground_truth_rationale": "Reused from Phase 28's own ground-truth fixture. get_user_email accesses user['email'] without a None guard - calling it with user=None raises a real TypeError, confirmed live in Phase 28/29's own verification.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "user_service.py",
+  "target_file_content": "def get_user_email(user):\n    \"\"\"Return the user's email address.\"\"\"\n    return user[\"email\"]\n",
+  "diff": "--- /dev/null\n+++ b/user_service.py\n@@ -0,0 +1,3 @@\n+def get_user_email(user):\n+    \"\"\"Return the user's email address.\"\"\"\n+    return user[\"email\"]\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "user_service.py", "function_name": "get_user_email", "class_name": null, "start_line": 1, "end_line": 3}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

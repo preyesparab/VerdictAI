@@ -1,0 +1,15 @@
+{
+  "case_id": "mutable_default_bug",
+  "ground_truth_buggy": true,
+  "ground_truth_rationale": "The default list argument is created once at function-definition time and shared across every call that doesn't pass target explicitly - classic Python mutable-default-argument bug. Verified directly: append_item(1) then append_item(2) returns [1, 2] for the second call, not [2].",
+  "sandbox_language": "python",
+  "target_file_relative_path": "appender.py",
+  "target_file_content": "def append_item(item, target=[]):\n    target.append(item)\n    return target\n",
+  "diff": "--- /dev/null\n+++ b/appender.py\n@@ -0,0 +1,3 @@\n+def append_item(item, target=[]):\n+    target.append(item)\n+    return target\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "appender.py", "function_name": "append_item", "class_name": null, "start_line": 1, "end_line": 3}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

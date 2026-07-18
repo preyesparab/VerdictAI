@@ -1,0 +1,630 @@
+{
+  "generated_at": "2026-07-07T14:35:27.161356+00:00",
+  "num_cases": 13,
+  "failed_cases": [
+    "type_mismatch_fixed"
+  ],
+  "num_buggy": 6,
+  "num_clean": 7,
+  "metrics": {
+    "condition_a_baseline": {
+      "catch_rate": 0.8333333333333334,
+      "false_positive_rate": 0.16666666666666666,
+      "avg_llm_calls": 1.0,
+      "avg_tokens": 416.4166666666667,
+      "avg_rounds": null
+    },
+    "condition_b_adversarial_no_verifier": {
+      "catch_rate": 1.0,
+      "false_positive_rate": 1.0,
+      "avg_llm_calls": 2.0833333333333335,
+      "avg_tokens": 2156.6666666666665,
+      "avg_rounds": null
+    },
+    "condition_c_full_pipeline": {
+      "catch_rate": 0.5,
+      "false_positive_rate": 0.8333333333333334,
+      "avg_llm_calls": 5.083333333333333,
+      "avg_tokens": 7359.666666666667,
+      "avg_rounds": 2.0
+    },
+    "claim_flip_rate_b_to_c": 0.46808510638297873,
+    "total_claims_raised": 47,
+    "total_claims_refuted": 22
+  },
+  "cases": [
+    {
+      "case_id": "colorama_reset_all_reused",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "Reused from Phase 27's own ground-truth work: wrapping the existing reset_all() call in try/except OSError: pass does not introduce a functional defect - nothing crashes, no behavior regresses. It is at most a code-quality gray area (a broader-than-necessary except clause), not a bug, so it is labeled clean for this benchmark's quantitative metrics; noted explicitly as the one case where 'not buggy' is a judgment call, not as clear-cut as the others.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "The change adds error handling for OSError when calling reset_all on AnsiToWin32, which does not introduce a bug, crash, security problem, or incorrect behavior."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 3
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.8,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "exception_handling",
+          "location": "colorama/initialise.py:30",
+          "assertion": "The try-except block in the reset_all function silently swallows all OSError exceptions without logging or handling them, potentially masking bugs.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "colorama/initialise.py:30",
+          "assertion": "The try-except block in the reset_all function has no test coverage for the case where an OSError is raised.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "colorama/initialise.py:29",
+          "assertion": "The reset_all function assumes that AnsiToWin32 is a class with a reset_all method, but it does not check the type of AnsiToWin32 before calling reset_all on it.",
+          "status": "refuted",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "case_id": "divide_by_zero_bug",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "average([]) raises ZeroDivisionError - no guard for empty input. Verified directly: running average([]) crashes with 'ZeroDivisionError: division by zero'.",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The function does not handle the case where the input list 'numbers' is empty, which would result in a ZeroDivisionError when attempting to calculate the average."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 5
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle the case where the input list is empty.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle the case where the input list contains non-numeric values.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "average.py:2",
+          "assertion": "The average function does not handle the case where the input list is None.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "average.py:2",
+          "assertion": "The average function does not check if the input list is None before attempting to calculate the average.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "There are no tests to verify the correctness of the average function.",
+          "status": "confirmed",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "divide_by_zero_fixed",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "Guards the empty-list case explicitly before dividing. Verified directly: average([]) returns 0, no crash.",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The function does not handle the case where the input is not a list or other iterable of numbers, which could lead to a TypeError. Additionally, it does not handle the case where the input list contains non-numeric values, which could also lead to a TypeError. The function also does not handle the case where the input list is very large, which could lead to a MemoryError or overflow error."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 6
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle non-numeric input",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle empty input correctly",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle single-element input correctly",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle multi-element input correctly",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "average.py:1",
+          "assertion": "The average function does not handle division by zero error",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "average.py:1",
+          "assertion": "The average function does not check the type of input",
+          "status": "refuted",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "case_id": "mutable_default_bug",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "The default list argument is created once at function-definition time and shared across every call that doesn't pass target explicitly - classic Python mutable-default-argument bug. Verified directly: append_item(1) then append_item(2) returns [1, 2] for the second call, not [2].",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The function `append_item` has a mutable default argument `target`. This can cause unexpected behavior because default arguments are only evaluated once at the point of function definition in the defining scope. If the function is called multiple times without specifying the `target` argument, it will continue to append items to the same list."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": false,
+        "verdict": "approve",
+        "confidence": 1.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "appender.py:1",
+          "assertion": "The append_item function does not have any test coverage to verify its correctness.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "appender.py:2",
+          "assertion": "The append_item function does not check if the item is None before appending it to the target list.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "appender.py:2",
+          "assertion": "The append_item function does not check the type of the target before attempting to append to it.",
+          "status": "refuted",
+          "confidence": "medium"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "appender.py:2",
+          "assertion": "The append_item function does not handle any potential exceptions that may occur when appending to the target list.",
+          "status": "refuted",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "mutable_default_fixed",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "Uses a None sentinel and creates a fresh list per call - the correct pattern. Verified directly: append_item(1) then append_item(2) returns [2] for the second call, as expected.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "The provided change does not contain any obvious bugs, crashes, security problems, or incorrect behavior based on the given context and diff."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 3
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.9,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "appender.py:1",
+          "assertion": "The append_item function does not have any test coverage.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "appender.py:3",
+          "assertion": "The target parameter is checked for None, but the item parameter is not checked for None before being appended to the target list.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "appender.py:4",
+          "assertion": "The target parameter is assumed to be a list, but it is not checked for type before being appended to.",
+          "status": "refuted",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "case_id": "null_check_bug_reused",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "Reused from Phase 28's own ground-truth fixture. get_user_email accesses user['email'] without a None guard - calling it with user=None raises a real TypeError, confirmed live in Phase 28/29's own verification.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "No callers, callees, or related tests were found, but the code appears to be syntactically correct and does not contain any obvious bugs."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.9,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "missing_null_check",
+          "location": "user_service.py:2",
+          "assertion": "The function get_user_email does not check if the user object is None before accessing its 'email' key",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "user_service.py:2",
+          "assertion": "The function get_user_email does not check if the 'email' key exists in the user object before accessing it",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "user_service.py:1",
+          "assertion": "There are no tests for the get_user_email function",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "user_service.py:2",
+          "assertion": "The function get_user_email assumes the user object is a dictionary without checking its type",
+          "status": "refuted",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "case_id": "nutriforge_register_login_reused",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "Reused from Phase 25-29's own ground-truth work: register's password-length check is correct, and login's lastLoginAt/save() is safe because the existing guard clause (if (!user || !(await user.matchPassword(password))) { return res.status(401)...}) already intercepts any unmatched user before user.lastLoginAt is reached - confirmed live in Phase 28 by running the real, unmodified, diff-applied login handler and observing it return 401 without throwing.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "The change adds password length validation in the register function and updates the last login timestamp in the login function. No obvious bugs, crashes, security problems, or incorrect behavior are introduced."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.9,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "server/src/controllers/auth.controller.js:21",
+          "assertion": "The new password length check in the register function is not covered by any test",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "server/src/controllers/auth.controller.js:44",
+          "assertion": "The update of the lastLoginAt field in the login function is not covered by any test",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "server/src/controllers/auth.controller.js:21",
+          "assertion": "The req.body object is not checked for null before accessing its properties",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "server/src/controllers/auth.controller.js:44",
+          "assertion": "The save operation in the login function does not handle potential errors",
+          "status": "confirmed",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "off_by_one_bug",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "items[-n+1:] drops one more item than intended. Verified directly: last_n_items([1,2,3,4,5], 3) returns [4, 5] (2 items), not [3, 4, 5] (3 items).",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The function last_n_items has a potential issue. It does not handle the case when n is larger than the length of the list items, which could result in an empty list being returned. Additionally, when n is 0 or negative, it will also return an empty list or raise an error. The function also does not handle the case when n is not an integer."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": false,
+        "verdict": "approve",
+        "confidence": 1.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "lastn.py:1",
+          "assertion": "The function last_n_items does not have any test coverage.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items does not check if the input 'items' is None before attempting to slice it.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items assumes that 'items' is a list or other sequence type, but does not check for this.",
+          "status": "refuted",
+          "confidence": "medium"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items does not handle the case where 'n' is greater than the length of 'items'.",
+          "status": "refuted",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "off_by_one_fixed",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "items[-n:] correctly returns the last n items. Verified directly: last_n_items([1,2,3,4,5], 3) returns [3, 4, 5], as expected.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "No concrete issue found in the provided change, as it appears to be a new function implementation without any obvious bugs or incorrect behavior."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.9,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "lastn.py:1",
+          "assertion": "The function last_n_items does not have any test coverage.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items does not check if the input 'items' is None before attempting to slice it.",
+          "status": "confirmed",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items assumes that 'items' is a list or other sequence type without checking its type.",
+          "status": "refuted",
+          "confidence": "medium"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "lastn.py:2",
+          "assertion": "The function last_n_items does not handle the case where 'n' is greater than the length of 'items'.",
+          "status": "confirmed",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "sql_injection_bug",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "String-concatenates untrusted username directly into a SQL query - a real SQL injection vector. Verified directly: bandit flags this exact file with test_id B608 (hardcoded_sql_expressions).",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The code is vulnerable to SQL injection attacks because it directly concatenates user input into the SQL query string."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 4
+      },
+      "condition_c": {
+        "flagged": false,
+        "verdict": "approve",
+        "confidence": 1.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "user_query.py:1",
+          "assertion": "The get_user_query function is not covered by any tests.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "user_query.py:3",
+          "assertion": "The get_user_query function does not handle potential exceptions that may occur during query execution.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "type_mismatch",
+          "location": "user_query.py:2",
+          "assertion": "The get_user_query function assumes that the username parameter is a string, but it does not check the type.",
+          "status": "refuted",
+          "confidence": "medium"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "user_query.py:1",
+          "assertion": "The get_user_query function does not check if the cursor or username parameters are None.",
+          "status": "refuted",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "sql_injection_fixed",
+      "ground_truth_buggy": false,
+      "ground_truth_rationale": "Uses a parameterized query - the safe pattern. Verified directly: bandit reports zero findings on this exact file.",
+      "condition_a": {
+        "has_issue": false,
+        "explanation": "No concrete issue is apparent in the provided change, as it introduces a new function without any existing callers or related tests to verify its correctness."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 3
+      },
+      "condition_c": {
+        "flagged": false,
+        "verdict": "approve",
+        "confidence": 1.0,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "untested_branch",
+          "location": "user_query.py:1",
+          "assertion": "The get_user_query function is not covered by any tests.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "user_query.py:2",
+          "assertion": "The get_user_query function does not handle potential exceptions that may occur during the execution of the SQL query.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "missing_null_check",
+          "location": "user_query.py:1",
+          "assertion": "The get_user_query function does not check if the cursor or username parameters are None before using them.",
+          "status": "refuted",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "case_id": "type_mismatch_bug",
+      "ground_truth_buggy": true,
+      "ground_truth_rationale": "total_price is called with a str where an int is annotated/expected. Verified directly: mypy flags this exact file with 'Argument 1 to \"total_price\" has incompatible type \"str\"; expected \"int\"' [arg-type].",
+      "condition_a": {
+        "has_issue": true,
+        "explanation": "The function total_price expects price and quantity to be integers, but a string '10' is passed as the price argument, which will cause a TypeError when trying to multiply it with the quantity."
+      },
+      "condition_b": {
+        "flagged": true,
+        "num_claims": 3
+      },
+      "condition_c": {
+        "flagged": true,
+        "verdict": "reject",
+        "confidence": 0.9,
+        "minority_report": null,
+        "rounds_used": 2
+      },
+      "claims": [
+        {
+          "claim_type": "type_mismatch",
+          "location": "pricing.py:1",
+          "assertion": "The function total_price expects an integer for the price parameter, but it is called with a string.",
+          "status": "refuted",
+          "confidence": "medium"
+        },
+        {
+          "claim_type": "untested_branch",
+          "location": "pricing.py:1",
+          "assertion": "There are no tests for the total_price function.",
+          "status": "refuted",
+          "confidence": "high"
+        },
+        {
+          "claim_type": "exception_handling",
+          "location": "pricing.py:1",
+          "assertion": "The function total_price does not handle the case where the price or quantity is not an integer.",
+          "status": "confirmed",
+          "confidence": "high"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "sql_injection_fixed",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Uses a parameterized query - the safe pattern. Verified directly: bandit reports zero findings on this exact file.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "user_query.py",
+  "target_file_content": "def get_user_query(cursor, username):\n    cursor.execute(\"SELECT * FROM users WHERE username = %s\", (username,))\n",
+  "diff": "--- /dev/null\n+++ b/user_query.py\n@@ -0,0 +1,2 @@\n+def get_user_query(cursor, username):\n+    cursor.execute(\"SELECT * FROM users WHERE username = %s\", (username,))\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "user_query.py", "function_name": "get_user_query", "class_name": null, "start_line": 1, "end_line": 2}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

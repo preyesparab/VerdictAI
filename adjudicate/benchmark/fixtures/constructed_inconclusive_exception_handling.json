@@ -1,0 +1,13 @@
+{
+  "repo": "constructed (not a cloned repo)",
+  "provenance": "Deliberately constructed for Phase 30's verification of the round-cap/INCONCLUSIVE handling - the one novel behavior that phase's task explicitly said not to skip testing. An exception_handling claim with no proposed_test deterministically hits adjudicate.verifier.strategies.verify_exception_handling's honest INCONCLUSIVE fallback (already covered by Phase 28's own unit tests) - used here to drive a real rebuttal loop to its round cap and a real Judge call against a genuinely unresolved claim, neither of which had been exercised live before this phase.",
+  "sandbox_language": "python",
+  "sandbox_entry_relative_path": "initialise.py",
+  "target_file_content": "def reset_all():\n    try:\n        _do_reset()\n    except OSError:\n        pass\n",
+  "claim": {
+    "claim_type": "exception_handling",
+    "location": "initialise.py:4",
+    "assertion": "The except OSError: pass clause silently swallows the exception with no logging and no proposed regression test exists to mechanically confirm or refute whether this masks a real problem.",
+    "proposed_test": ""
+  }
+}

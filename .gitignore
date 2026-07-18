@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.Python
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data (keep folder structure via .gitkeep)
+data/repositories/*
+data/indexes/*
+data/cache/*
+data/sqlite/*
+data/evaluation/*
+data/logs/*
+data/graph/*
+!data/repositories/.gitkeep
+!data/indexes/.gitkeep
+!data/cache/.gitkeep
+!data/sqlite/.gitkeep
+!data/evaluation/.gitkeep
+!data/logs/.gitkeep
+!data/graph/.gitkeep
+
+# Logs
+*.log
+ 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Debug/scratch artifacts
+data/repomind.db
+env_test_output.txt
+live_review_full_events.json
+live_review_verification_output.txt
+.claude/scheduled_tasks.lock

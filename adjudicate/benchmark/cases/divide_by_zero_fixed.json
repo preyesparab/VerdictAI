@@ -1,0 +1,15 @@
+{
+  "case_id": "divide_by_zero_fixed",
+  "ground_truth_buggy": false,
+  "ground_truth_rationale": "Guards the empty-list case explicitly before dividing. Verified directly: average([]) returns 0, no crash.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "average.py",
+  "target_file_content": "def average(numbers):\n    if not numbers:\n        return 0\n    return sum(numbers) / len(numbers)\n",
+  "diff": "--- /dev/null\n+++ b/average.py\n@@ -0,0 +1,4 @@\n+def average(numbers):\n+    if not numbers:\n+        return 0\n+    return sum(numbers) / len(numbers)\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "average.py", "function_name": "average", "class_name": null, "start_line": 1, "end_line": 4}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

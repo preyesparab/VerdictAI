@@ -1,0 +1,15 @@
+{
+  "case_id": "divide_by_zero_bug",
+  "ground_truth_buggy": true,
+  "ground_truth_rationale": "average([]) raises ZeroDivisionError - no guard for empty input. Verified directly: running average([]) crashes with 'ZeroDivisionError: division by zero'.",
+  "sandbox_language": "python",
+  "target_file_relative_path": "average.py",
+  "target_file_content": "def average(numbers):\n    return sum(numbers) / len(numbers)\n",
+  "diff": "--- /dev/null\n+++ b/average.py\n@@ -0,0 +1,2 @@\n+def average(numbers):\n+    return sum(numbers) / len(numbers)\n",
+  "context_bundle": {
+    "changed_functions": [{"file_path": "average.py", "function_name": "average", "class_name": null, "start_line": 1, "end_line": 2}],
+    "callers": [],
+    "callees": [],
+    "related_tests": []
+  }
+}

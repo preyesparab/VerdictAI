@@ -1,0 +1,20 @@
+{
+  "repo": "tartley/colorama",
+  "repo_id": "66d95a2f-6096-5f28-b741-12a51dac4ec5",
+  "diff_summary": "reset_all: wraps the existing AnsiToWin32(orig_stdout).reset_all() call in a try/except OSError: pass block",
+  "provenance": "Real Prosecutor structured-claims output, Phase 27 follow-up, provider=groq/llama-3.3-70b-versatile, captured 2026-07-07 (see docs/state/PROGRESS.md's Phase 27 follow-up entry). Verbatim, not paraphrased or hand-edited.",
+  "claims": [
+    {
+      "claim_type": "exception_handling",
+      "location": "colorama/initialise.py:32",
+      "assertion": "The try-except block in the reset_all function silently swallows all OSError exceptions without logging or handling them, potentially masking critical errors.",
+      "proposed_test": "try: raise OSError('Test error'); except OSError: pass; assert False, 'Expected OSError to be raised'"
+    },
+    {
+      "claim_type": "exception_handling",
+      "location": "colorama/initialise.py:32",
+      "assertion": "The try-except block in the reset_all function only catches OSError exceptions, but other types of exceptions may still occur and are not handled.",
+      "proposed_test": "try: raise ValueError('Test error'); except OSError: pass; assert False, 'Expected ValueError to be raised'"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "repo": "constructed (not a cloned repo)",
+  "provenance": "Deliberately constructed for Phase 28's verification, per the task's explicit allowance ('pick or construct one with a genuinely provable issue') - a minimal, self-contained example proving the Verifier correctly reports CONFIRMED (a true positive) with real evidence, not just REFUTED (a true negative, the NutriForge case). Unlike the NutriForge false claim, this target function genuinely has no null guard - calling it with None really does raise a TypeError.",
+  "sandbox_language": "python",
+  "sandbox_entry_relative_path": "user_service.py",
+  "target_file_content": "def get_user_email(user):\n    \"\"\"Return the user's email address.\"\"\"\n    return user[\"email\"]\n",
+  "claim": {
+    "claim_type": "missing_null_check",
+    "location": "user_service.py:3",
+    "assertion": "get_user_email accesses user['email'] without checking whether user is None first, so calling it with user=None raises a TypeError instead of returning a safe default.",
+    "proposed_test": "from user_service import get_user_email\n\nresult = get_user_email(None)\nassert result is None\n"
+  }
+}
