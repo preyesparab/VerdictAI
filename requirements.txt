@@ -16,8 +16,11 @@ tree-sitter-javascript>=0.23,<0.24
 # Phase 6 — Repository Knowledge Graph Construction
 networkx>=3.2,<4
 
-# Phase 7 — SQLite Storage Layer
+# Phase 7 — Relational Storage Layer (SQLite originally; migrated to
+# PostgreSQL in Phase 33 prep — psycopg2 is a sync driver so the existing
+# synchronous SQLAlchemy Session API needed no call-site changes)
 SQLAlchemy>=2.0,<3
+psycopg2-binary>=2.9,<3
 
 # Phase 8 — Embedding Generation
 sentence-transformers>=3.0,<4

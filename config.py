@@ -33,16 +33,12 @@ from core.constants import (
     DEFAULT_DATA_DIR_NAME,
     DEFAULT_EVALUATION_DIR_NAME,
     DEFAULT_GEMINI_MODEL,
-    DEFAULT_GRAPH_DIR_NAME,
-    DEFAULT_GRAPH_FILE_NAME,
     DEFAULT_GROQ_MODEL,
     DEFAULT_INDEXES_DIR_NAME,
     DEFAULT_LOGS_DIR_NAME,
     DEFAULT_OLLAMA_MODEL,
     DEFAULT_RERANKER_MODEL,
     DEFAULT_REPOSITORIES_DIR_NAME,
-    DEFAULT_SQLITE_DB_NAME,
-    DEFAULT_SQLITE_DIR_NAME,
 )
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent
@@ -245,26 +241,19 @@ class Settings(BaseSettings):
     CACHE_DIR: Path = Field(
         default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_CACHE_DIR_NAME
     )
-    SQLITE_DIR: Path = Field(
-        default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_SQLITE_DIR_NAME
-    )
-    SQLITE_DB_PATH: Path = Field(
-        default=PROJECT_ROOT
-        / DEFAULT_DATA_DIR_NAME
-        / DEFAULT_SQLITE_DIR_NAME
-        / DEFAULT_SQLITE_DB_NAME
+    DATABASE_URL: str = Field(
+        default="postgresql+psycopg2://repomind:repomind@localhost:5432/repomind",
+        description="SQLAlchemy connection URL for the PostgreSQL relational store "
+        "(Phase 7-8/14 metadata, chunks, graph, embeddings, semantic cache). "
+        "For local dev, run: docker compose up -d postgres "
+        "(see docker-compose.yml) - or a native install with a matching "
+        "user/password/database.",
     )
     EVALUATION_DIR: Path = Field(
         default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_EVALUATION_DIR_NAME
     )
     LOG_DIR: Path = Field(
         default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_LOGS_DIR_NAME
-    )
-    GRAPH_DIR: Path = Field(
-        default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_GRAPH_DIR_NAME
-    )
-    GRAPH_FILE_PATH: Path = Field(
-        default=PROJECT_ROOT / DEFAULT_DATA_DIR_NAME / DEFAULT_GRAPH_DIR_NAME / DEFAULT_GRAPH_FILE_NAME
     )
 
     # ------------------------------------------------------------------
@@ -308,10 +297,8 @@ class Settings(BaseSettings):
             self.REPOSITORIES_DIR,
             self.INDEXES_DIR,
             self.CACHE_DIR,
-            self.SQLITE_DIR,
             self.EVALUATION_DIR,
             self.LOG_DIR,
-            self.GRAPH_DIR,
         ):
             directory.mkdir(parents=True, exist_ok=True)
 

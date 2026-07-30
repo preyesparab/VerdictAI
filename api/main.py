@@ -31,7 +31,6 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import networkx as nx
@@ -175,7 +174,7 @@ def _reconstruct_ready_state(repo_id: str) -> RepoIndexState | None:
     # load_graph`'s lossy SQL reconstruction (see `get_graph`'s
     # docstring). Both must report identical node/edge counts.
     try:
-        graph = graph_store.load_graph(path=_graph_json_path(repository.owner, repository.name))
+        graph = graph_store.load_graph(repo_id, db)
         graph_nodes, graph_edges = graph.number_of_nodes(), graph.number_of_edges()
     except DatabaseError:
         graph_nodes = graph_edges = 0
@@ -590,12 +589,10 @@ def get_graph(repo_id: str, focus_node: str | None = None, hops: int = 2) -> dic
         HTTPException: 404 if `focus_node` is not a node in this
             repository's graph; 400 if `hops` is negative.
     """
-    state = _require_ready(repo_id)
-    assert state.summary is not None  # noqa: S101 - guaranteed by _require_ready's "ready" check
-    repository = state.summary.repository
+    _require_ready(repo_id)
 
     try:
-        graph = graph_store.load_graph(path=_graph_json_path(repository.owner, repository.name))
+        graph = graph_store.load_graph(repo_id, _get_db())
     except DatabaseError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -607,11 +604,6 @@ def get_graph(repo_id: str, focus_node: str | None = None, hops: int = 2) -> dic
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
     return nx.node_link_data(graph)
-
-
-def _graph_json_path(owner: str, name: str) -> Path:
-    """The per-repository graph JSON path `Pipeline.index_repository` writes to (see its `_graph_path`)."""
-    return settings.GRAPH_DIR / f"{owner}_{name}.json"
 
 
 @app.post("/repos/{repo_id}/review")

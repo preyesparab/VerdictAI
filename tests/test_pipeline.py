@@ -16,7 +16,7 @@ end-to-end via the CLI rather than with mocked collaborators.
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from collections.abc import Iterator
 
 import pytest
 
@@ -44,8 +44,10 @@ def _chunk(seed: str, *, parent_chunk_id: uuid.UUID | None = None, function_name
 
 
 @pytest.fixture
-def pipeline(tmp_path: Path) -> Pipeline:
-    return Pipeline(db=DatabaseManager(db_path=tmp_path / "test.db"))
+def pipeline(pg_schema: str) -> Iterator[Pipeline]:
+    db = DatabaseManager(schema=pg_schema)
+    yield Pipeline(db=db)
+    db.drop_schema()
 
 
 @pytest.fixture(autouse=True)

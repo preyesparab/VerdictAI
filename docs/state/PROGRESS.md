@@ -4041,3 +4041,228 @@ either treating it as the wrong project or filling it in literally.
   file only): no correction to `docs/roadmap.md`'s stale Phase 32 line, no
   changes to `README.md` (also confirmed stale - still says "no business
   logic implemented yet"), no code changes of any kind.
+
+## Session close-out: Phase 31 completed, Phase 32 fully live-verified, roadmap/README brought current
+Four-item close-out session, per explicit instruction to clear every
+stale/incomplete item before deployment. Checked both providers' quota
+first (a real, minimal `LLMClient(max_tokens=8)` call each, not assumed from
+the date): both Gemini and Groq returned real `200 OK` responses - the
+2026-07-07/08 exhaustion had long since reset by 2026-07-19.
+
+- **Phase 31 - now ✅, all 13/13 cases real.** Wrote
+  `adjudicate/benchmark/complete_phase31.py` (the reconstruction script
+  referenced but never actually committed by the prior session) - runs only
+  `type_mismatch_fixed` for real, then recombines its result into the prior
+  report's stored aggregates algebraically (`old_mean * old_n + new_value,
+  / new_n`), not by re-deriving from scratch, since the saved report never
+  persisted other cases' per-case token/call counts. Safe specifically
+  because case 13 is clean: catch rate (buggy-only) is provably unchanged.
+  Real run (Groq `llama-3.3-70b-versatile`): condition (a) correctly found
+  no issue; condition (b) raised 3 claims (a false positive, trusted at face
+  value); condition (c)'s Verifier refuted all 3 and the Judge approved -
+  this 13th case is the **second** clean case (after `sql_injection_fixed`)
+  where condition (c) discriminated correctly, not a third instance of the
+  "confirmed-but-out-of-scope false positive" pattern the last entry
+  explicitly flagged as unconfirmed for this case. Final 13-case numbers
+  (full report: `adjudicate/benchmark/results/20260719T070702Z.json`):
+  catch rates unchanged at 83.3%/100%/50% (a/b/c, case 13 doesn't affect the
+  buggy-only denominator); false-positive rates now 14.3%/100%/71.4% (was
+  16.7%/100%/83.3% over 12); **claim-flip rate now 50.0% (25/50)**, up from
+  46.8% (22/47) - the headline number strengthens, not weakens.
+- **Phase 32 Part 2 - now ✅, real full live run confirmed, Judge card
+  hand-verified.** Ran the actual browser flow via a real Playwright +
+  Chromium script (`playwright` 1.61.0 + Chromium already installed in
+  `.venv`) against real `uvicorn`+`vite` dev processes: indexed
+  `tartley/colorama` through the real landing form, submitted the same
+  `reset_all` diff used as ground truth throughout this project, and
+  watched the stream reach Context -> Defender -> Prosecutor/Verifier ->
+  Rebuttal -> **Judge: REJECT, 80% confidence**, citing two
+  `[CONFIRMED, high]` claims (`exception_handling`, `untested_branch` at
+  `colorama/initialise.py:31`). Hand-checked against the diff: both claims
+  are real and accurate (a bare `except OSError: pass` that swallows
+  silently, with no test forcing that specific branch) - this exactly
+  reproduces the standalone Phase 31 benchmark's own stored result for the
+  same case (`colorama_reset_all_reused`: reject, 0.8 confidence),
+  independently cross-validating both paths. Zero browser console errors.
+  - **Two real, disclosed environment issues fixed along the way, not code
+    bugs in the reviewed feature itself:** (1) `CORS_ALLOWED_ORIGINS`
+    (`config.py`) only allowed port 5173; Vite fell back to 5174 because
+    something was already bound to 5173 in this environment, so `.env` now
+    additionally allows `5174` (both origins kept, nothing removed -
+    confirmed via a real CORS preflight `OPTIONS` request before and after).
+    (2) Port 8000 had an orphaned listening socket with no corresponding
+    process visible to either this session's Bash sandbox or a host-level
+    PowerShell `Get-Process`/`Get-NetTCPConnection` query - not a code
+    issue, worked around by running the backend on 8010 for this
+    verification rather than fighting an unkillable phantom reservation.
+- **`docs/roadmap.md` audit:** cross-checked every phase entry (0-36)
+  against this file's real history. Only Phase 31 and 32 were stale (both
+  now flipped to ✅ above); Phases 21-30's ✅ markers and 33-36's ⬜ markers
+  already matched reality, confirmed via this file's own Phase-numbered
+  headers, not assumed.
+- **`README.md` rewritten for real** (a prior session's own note confirms
+  this was drafted once before but never landed - checked the live file
+  first: it still read "Repository initialized. No business logic
+  implemented yet.", a Phase-0-era placeholder). New version, sourced from
+  `docs/project_description.md`: what Verdict AI does, the
+  Defender/Prosecutor/Verifier/Judge review pipeline, the retrieval engine
+  underneath (Tree-sitter, hybrid dense+sparse, graph expansion, reranking,
+  semantic cache, small-to-big, RAGAS/ablation eval), real setup/run
+  instructions (verified against `cli.py`'s actual subcommands and
+  `evaluation/ablation.py`'s actual lack of a CLI entrypoint - not invented),
+  and the real, final 13-case benchmark numbers (no longer provisional).
+- **Full regression suite, run after all of the above:** backend
+  `pytest -q`: **693 passed**, 0 failed (unchanged - `complete_phase31.py`
+  is an integration entrypoint like `run.py`, which also has no dedicated
+  test file, so this isn't a new gap). Frontend `npm run build`: 52 modules,
+  0 errors.
+- Not done (out of this session's stated scope): Phase 33 (Deployment) -
+  correctly still ⬜, next real piece of work per the roadmap and this
+  session's own README rewrite.
+
+## Phase 33 (storage-layer slice) — SQLite → PostgreSQL migration
+
+Deliberately scoped narrowly, as instructed: only the relational storage
+layer (`database/sqlite_client.py`, `database/graph_store.py`,
+`database/models.py`, `config.py`) moved to PostgreSQL. FAISS, BM25, Redis,
+task queues, and `pipeline.py`/agent/API-contract logic were explicitly
+untouched. Migrated and regression-tested incrementally (full suite after
+each step, reported before proceeding), not as one rewrite.
+
+- **Driver: `psycopg2` (sync), not `asyncpg`.** Every `DatabaseManager`
+  method is a blocking SQLAlchemy `Session` call, and `pipeline.py`/
+  `api/main.py`/every retrieval module already depend on that being
+  synchronous - `asyncpg` would require an async engine + `AsyncSession` +
+  `await` at every call site, which the task explicitly put out of scope
+  ("storage-layer swap underneath, not a behavior change"). `psycopg2-binary`
+  keeps the exact same `Session`/`sessionmaker` API; only the connection
+  string and a couple of dialect details changed.
+- **Dev/test Postgres:** `docker-compose.yml` gained a `postgres:16` service
+  (user/pass/db all `repomind`, healthchecked, named volume). Local setup is
+  `docker compose up -d postgres`. `config.Settings.DATABASE_URL` replaces
+  `SQLITE_DB_PATH`/`SQLITE_DIR` entirely (no dual-backend shim), defaulting
+  to `postgresql+psycopg2://repomind:repomind@localhost:5432/repomind`.
+- **Test isolation redesigned:** the old one-SQLite-file-per-test pattern
+  (`DatabaseManager(db_path=tmp_path / "test.db")`) has no Postgres
+  equivalent, since all tests now share one real Postgres instance.
+  Replaced with one PostgreSQL **schema** per test:
+  `DatabaseManager(schema: str | None = None)` scopes every table it
+  touches via the connection's `search_path` (`connect_args={"options":
+  f"-csearch_path={schema}"}`); `initialize_database()` issues
+  `CREATE SCHEMA IF NOT EXISTS` (via a separate, schema-agnostic connection,
+  since a connection whose `search_path` already points at a not-yet-
+  existing schema can't `CREATE TABLE` into it) before `Base.metadata
+  .create_all`; a new `drop_schema()` (`DROP SCHEMA ... CASCADE`) tears it
+  down. `tests/conftest.py` adds one shared `pg_schema` fixture (a random
+  `test_<uuid hex>` name); every affected test file's local `db` fixture
+  now does `DatabaseManager(schema=pg_schema)` → `yield` → `drop_schema()`
+  instead of returning a `tmp_path`-backed manager. Schema names are
+  validated against a bare-identifier regex before use (never trusted as
+  arbitrary SQL) even though they're always internally generated, not user
+  input.
+- **`database/models.py`:** table/FK/unique-constraint shapes unchanged.
+  One real correctness fix, not scope creep: `indexed_at`/`created_at`
+  columns are now `DateTime(timezone=True)` - SQLite silently tolerated
+  storing timezone-aware `datetime.now(timezone.utc)` values, but
+  PostgreSQL's default `DateTime` maps to `TIMESTAMP WITHOUT TIME ZONE` and
+  would have silently dropped the tzinfo.
+- **`database/sqlite_client.py`:** kept its filename and the
+  `DatabaseManager` public interface unchanged (23 files import it -
+  renaming was flagged as a large mechanical diff for a task scoped as
+  "storage-layer swap, not a behavior change" and skipped). Internals:
+  `create_engine(settings.DATABASE_URL, pool_pre_ping=True)` replaces the
+  SQLite URL; the SQLite-only `PRAGMA foreign_keys=ON` connect listener is
+  gone (PostgreSQL always enforces FKs). `_session_scope` renamed to the
+  public `session_scope` specifically so `database.graph_store` can share
+  an instance's exact engine/schema rather than opening an independent
+  connection (see below).
+- **`database/graph_store.py` - file → table, not just SQLite → Postgres.**
+  This module was never SQLite-backed to begin with; it read/wrote a flat
+  JSON file per repository (`data/graph/{owner}_{name}.json`), keyed by an
+  arbitrary `path` argument. New `GraphSnapshotRecord` (`repository_id` PK/
+  FK → `repositories`, `graph_data JSONB`, `updated_at`) replaces the file;
+  `save_graph(graph, repository_id, db)`/`load_graph(repository_id, db)`
+  upsert/read that row - same `nx.node_link_data`/`node_link_graph` JSON
+  shape as before, just relocated. Both functions now take the caller's
+  `DatabaseManager` (via the new public `session_scope`) instead of opening
+  an independent engine: `GraphSnapshotRecord.repository_id` is a foreign
+  key into `RepositoryRecord`, so a snapshot has to be written/read through
+  the exact same engine/schema every other table for that repository uses
+  - an independent connection would silently target the wrong schema under
+  per-test isolation (caught by a real test failure - `relation
+  "graph_snapshots" does not exist` - not just a design objection; see
+  "bug found" note below). Dropping the `path` parameter cascaded into
+  removing `settings.GRAPH_DIR`/`GRAPH_FILE_PATH` (no longer meaningful for
+  a DB-backed store) and `retrieval.graph_retriever.GraphExpander`'s
+  `graph_dir`/owner-name-derivation plumbing (`_index_stem`/`_graph_path`) -
+  it now takes `db` and calls `load_graph(repository_id, db)` directly, no
+  filename derivation needed. Call sites updated mechanically (argument
+  changes only, no logic changes): `pipeline.py` (`save_graph`,
+  `GraphExpander(self._db)`), `api/main.py` (`_reconstruct_ready_state`,
+  `get_graph` - and its now-dead `_graph_json_path` helper removed),
+  `scripts/demo_phase16_end_to_end.py`.
+- **Bug found and fixed during this migration (not shipped broken):**
+  first pass gave `graph_store.py` its own independent module-level
+  engine/sessionmaker (for "independent testability"). Full regression
+  immediately caught it: `psycopg2.errors.UndefinedTable: relation
+  "graph_snapshots" does not exist` in every graph-store/graph-retriever
+  test, because that independent engine had no `search_path` override and
+  connected to the connection's default schema, while the per-test
+  `DatabaseManager(schema=pg_schema)` had only created the table inside the
+  test's own schema. Root cause understood before fixing (not papered
+  over): `GraphSnapshotRecord`'s FK into `RepositoryRecord` makes "its own
+  connection" structurally wrong, not just a test-isolation inconvenience -
+  fixed by threading `db: DatabaseManager` through both functions instead.
+- **The Phase 7 bug this task specifically asked to re-verify** (`api/main
+  .py`'s `/status`-DB-fallback and `/graph` previously called
+  `DatabaseManager.load_graph`'s lossy SQL reconstruction - all-stored-
+  chunks-as-nodes, no file-level edges - instead of `database.graph_store
+  .load_graph`'s exact persisted snapshot) **still holds after the
+  migration**: both functions exist as distinct, intentionally-different
+  Postgres-backed paths (`DatabaseManager.load_graph` reconstructs from
+  `code_chunks`/`graph_edges`; `graph_store.load_graph` reads the
+  `graph_snapshots` JSONB row), and `api/main.py`/`retrieval.graph_retriever
+  .GraphExpander` still call only the latter.
+- **Migrated incrementally, full suite after each step, as instructed:**
+  (1) Postgres infra + `DATABASE_URL` wiring; (2)-(6)
+  `RepositoryRecord`/`SourceFileRecord`/`CodeChunkRecord`/`GraphEdgeRecord`
+  + `DatabaseManager.load_graph`/`EmbeddingRecord`/`SemanticCacheRecord` -
+  one atomic engine swap in `sqlite_client.py` covers all of these at once,
+  verified via `tests/test_database/test_sqlite_client.py`'s 37 tests
+  passing standalone before the full suite; (7) `graph_store.py` → JSONB
+  (see above, including the bug-fix-and-retest cycle). Full suite: **693
+  passed**, 0 failed, both before and after step 7 (net test count
+  unchanged from the pre-migration SQLite baseline despite completely
+  replacing the storage backend - `test_graph_store.py`'s file-path-
+  specific tests were replaced 1:1 with schema/row-equivalent tests).
+- **End-to-end verification, against the real dev Postgres instance, not
+  mocked:** fresh `Pipeline()` (default/production schema, no test
+  isolation) re-indexed `github.com/tartley/colorama` from scratch.
+  `files_discovered=23, chunks_indexed=344, graph_nodes=184,
+  graph_edges=283` - **exact match** to the known-good numbers this same
+  repository produced against SQLite (Phase 20's verification, recorded
+  above). Real chat query ("What does the AnsiFore class do?") through the
+  full retrieval+generation stack (real CodeBERT embeddings, real FAISS/
+  BM25/graph-expansion/reranking, real Groq `llama-3.3-70b-versatile`
+  generation - `USE_GEMINI` fell through to the Groq fallback) returned a
+  correct, grounded answer citing `colorama/ansi.py`'s `AnsiFore`/
+  `AnsiCodes` classes - citations resolved to real file paths, not empty.
+  Semantic cache (Phase 14) backend/frontend regression pair re-run against
+  this real Postgres-backed cache: "what tech stack does the frontend use"
+  correctly missed (rejected as lexically incompatible despite 0.9963
+  cosine similarity) after caching a backend answer; the exact-repeat query
+  correctly hit (similarity=1.0000) - the lexical-compatibility gate holds
+  identically against Postgres-backed cache entries. Finally, started a
+  fresh `uvicorn api.main:app` process (simulating "previous process"
+  reconstruction, not the same in-memory state the indexing run left
+  behind) and hit the real HTTP endpoints for this same repository:
+  `GET /status` → `graph_nodes=184, graph_edges=283`; `GET /graph` → 184
+  nodes / 283 edges in the returned node-link JSON. All three paths (direct
+  `Pipeline`, `/status`, `/graph`) agree, exactly the invariant the
+  original Phase 7 bug fix established - confirmed it survived the
+  migration rather than assumed.
+- Not done (deliberately out of this slice's scope, per the task):
+  FAISS/pgvector migration, Redis, task queues, and the rest of Phase 33
+  (Vercel/Render hosting, sandboxed verifier hosting) - roadmap left at
+  🟡 (in progress) rather than flipped to ✅, since the phase as a whole
+  (deployment) is not complete, only its storage-layer prerequisite.

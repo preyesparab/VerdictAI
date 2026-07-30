@@ -8,6 +8,7 @@ no parsing or embedding model involved.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -70,10 +71,11 @@ def _chunk(
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> DatabaseManager:
-    manager = DatabaseManager(db_path=tmp_path / "test.db")
+def db(pg_schema: str) -> Iterator[DatabaseManager]:
+    manager = DatabaseManager(schema=pg_schema)
     manager.initialize_database()
-    return manager
+    yield manager
+    manager.drop_schema()
 
 
 @pytest.fixture

@@ -61,12 +61,8 @@ DEFAULT_DATA_DIR_NAME: Final[str] = "data"
 DEFAULT_REPOSITORIES_DIR_NAME: Final[str] = "repositories"
 DEFAULT_INDEXES_DIR_NAME: Final[str] = "indexes"
 DEFAULT_CACHE_DIR_NAME: Final[str] = "cache"
-DEFAULT_SQLITE_DIR_NAME: Final[str] = "sqlite"
 DEFAULT_EVALUATION_DIR_NAME: Final[str] = "evaluation"
 DEFAULT_LOGS_DIR_NAME: Final[str] = "logs"
-DEFAULT_SQLITE_DB_NAME: Final[str] = "repomind.db"
-DEFAULT_GRAPH_DIR_NAME: Final[str] = "graph"
-DEFAULT_GRAPH_FILE_NAME: Final[str] = "graph.json"
 
 # ---------------------------------------------------------------------
 # Default model names

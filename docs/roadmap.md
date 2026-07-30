@@ -66,11 +66,11 @@
 
 ✅ Phase 30 Judge Agent
 
-🟡 Phase 31 Benchmark Harness (in progress — 12/13 cases have real, complete results; 1 case blocked on daily provider quota, see docs/state/PROGRESS.md for the full provisional results table and why it is not yet ✅)
+✅ Phase 31 Benchmark Harness (all 13/13 cases now have real, complete results — the 13th, `type_mismatch_fixed`, was completed and merged in once provider quota reset; see docs/state/PROGRESS.md for the final results table)
 
-🟡 Phase 32 React Frontend (Part 1 of 2 done — Chat + Graph scaffold, real-verified against a live indexed repo; Part 2, the live Defender/Prosecutor/Verifier/Judge review screen + SSE, still pending. See docs/state/PROGRESS.md. Live observability is built directly into this phase, not a separate Streamlit prototype step; see docs/project _description.md's Phase 32 entry)
+✅ Phase 32 React Frontend (both parts done — Part 1: Chat + Graph scaffold; Part 2: the live Defender/Prosecutor/Verifier/Judge review screen + SSE, confirmed with a real, full, Playwright-driven browser run reaching and hand-verifying the Judge card. See docs/state/PROGRESS.md)
 
-⬜ Phase 33 Deployment (Vercel + Render/FastAPI + Sandboxed Verifier Hosting)
+🟡 Phase 33 Deployment (Vercel + Render/FastAPI + Sandboxed Verifier Hosting) — storage-layer prerequisite done (SQLite → PostgreSQL migration, see PROGRESS.md); Vercel/Render/sandboxed verifier hosting still pending
 
 ⬜ Phase 34 Documentation Agent (stretch)
 

@@ -11,22 +11,19 @@ Unlike `database.sqlite_client.DatabaseManager.load_graph` (Phase 7, which
 deliberately reconstructs chunk-to-chunk edges only), this module loads
 the original full graph - file nodes included - because "imported
 modules" expansion needs the file-to-file `imports` edges Phase 7 does not
-persist. Each repository's graph is expected at a repository-scoped path
-(``<owner>_<repository_name>.json`` under `settings.GRAPH_DIR`, the same
-naming convention Phases 9-10 use for their own index files), derived via
-`database.sqlite_client.DatabaseManager.load_repository` the same way
-`FaissIndexManager`/`BM25Manager` derive their index filenames.
+persist. Each repository's graph is loaded directly by `repository_id`
+(Phase 33 storage migration - `database.graph_store` is PostgreSQL-backed,
+keyed the same way every other table is, so no filename derivation is
+needed here anymore).
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
 
 import networkx as nx
 
-from config import settings
 from core.exceptions import DatabaseError, RetrievalError
 from core.logging import get_logger
 from database.graph_store import load_graph
@@ -60,19 +57,13 @@ class GraphExpander:
     of either's numeric score - see `expand`'s docstring.
     """
 
-    def __init__(
-        self,
-        db: DatabaseManager,
-        graph_dir: Path | None = None,
-        decay_factor: float = DEFAULT_DECAY_FACTOR,
-    ) -> None:
+    def __init__(self, db: DatabaseManager, decay_factor: float = DEFAULT_DECAY_FACTOR) -> None:
         """Initialize the expander.
 
         Args:
-            db: Used to resolve `repository_id` to owner/name for graph
-                file naming (see module docstring).
-            graph_dir: Directory repository graph JSON files are read
-                from. Defaults to `settings.GRAPH_DIR`.
+            db: Used to load the persisted graph snapshot through the same
+                engine/schema every other table for this repository uses
+                (see `database.graph_store.load_graph`).
             decay_factor: Multiplier applied per hop when computing a
                 graph-discovered chunk's score
                 (``originating_score * decay_factor ** graph_distance``).
@@ -86,22 +77,10 @@ class GraphExpander:
             raise ValueError(f"decay_factor must be in (0, 1), got {decay_factor}")
 
         self._db = db
-        self._graph_dir = graph_dir or settings.GRAPH_DIR
         self._decay_factor = decay_factor
 
-    def _index_stem(self, repository_id: str) -> str:
-        """Derive this repository's graph filename stem (without extension)."""
-        repository = self._db.load_repository(repository_id)
-        if repository is None:
-            return repository_id
-        return f"{repository.owner}_{repository.name}"
-
-    def _graph_path(self, repository_id: str) -> Path:
-        """Path to `repository_id`'s persisted knowledge graph JSON file."""
-        return self._graph_dir / f"{self._index_stem(repository_id)}.json"
-
     def _load_graph(self, repository_id: str) -> nx.DiGraph:
-        """Load `repository_id`'s knowledge graph from disk.
+        """Load `repository_id`'s knowledge graph.
 
         Args:
             repository_id: The repository whose graph to load.
@@ -111,17 +90,17 @@ class GraphExpander:
             persisted by `database.graph_store.save_graph`.
 
         Raises:
-            RetrievalError: If the graph file is missing or unreadable.
+            RetrievalError: If no snapshot is stored for `repository_id`
+                or it cannot be deserialized.
         """
-        path = self._graph_path(repository_id)
         try:
-            graph = load_graph(path)
+            graph = load_graph(repository_id, self._db)
         except DatabaseError as exc:
             raise RetrievalError(f"Failed to load graph for repository {repository_id}: {exc}") from exc
 
         logger.info(
-            "Graph loaded for repository %s: %s (%d node(s), %d edge(s))",
-            repository_id, path, graph.number_of_nodes(), graph.number_of_edges(),
+            "Graph loaded for repository %s: %d node(s), %d edge(s)",
+            repository_id, graph.number_of_nodes(), graph.number_of_edges(),
         )
         return graph
 

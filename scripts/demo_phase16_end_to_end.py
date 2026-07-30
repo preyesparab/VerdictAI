@@ -29,6 +29,7 @@ import re
 import shutil
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 # This script is invoked directly (`python scripts/demo_phase16_end_to_end.py`),
@@ -113,8 +114,7 @@ def main() -> None:
 def _run(scratch_dir: Path) -> None:
     repositories_dir = scratch_dir / "repositories"
     indexes_dir = scratch_dir / "indexes"
-    graph_dir = scratch_dir / "graph"
-    db_path = scratch_dir / "sqlite" / "repomind.db"
+    schema = f"demo_{uuid.uuid4().hex[:16]}"
 
     # -- Phase 2-5: acquire, discover, parse, chunk -----------------------
     print(f"[1/9] Cloning {REPOSITORY_URL} ...")
@@ -141,19 +141,18 @@ def _run(scratch_dir: Path) -> None:
     print(f"      -> {total_ast_chunks} AST chunk(s) parsed across {len(chunking_results)} file(s)")
 
     # -- Phase 7: persist repository/files/chunks -------------------------
-    db = DatabaseManager(db_path=db_path)
+    db = DatabaseManager(schema=schema)
     db.initialize_database()
     repository_id = db.store_repository(repository)
     db.store_source_files(repository_id, source_files)
     db.store_chunks(repository_id, chunking_results)
-    print(f"[3/9] Persisted to SQLite as repository_id={repository_id}")
+    print(f"[3/9] Persisted to PostgreSQL (schema={schema}) as repository_id={repository_id}")
 
     # -- Phase 6: knowledge graph ------------------------------------------
     all_ast_chunks = [chunk for result in chunking_results.values() for chunk in result.ast_chunks]
     graph = RepositoryGraphBuilder().build_graph(source_files, all_ast_chunks)
     db.store_graph(repository_id, graph)
-    graph_path = graph_dir / f"{repository.owner}_{repository.name}.json"
-    save_graph(graph, path=graph_path)
+    save_graph(graph, repository_id, db)
     print(f"[4/9] Graph built: {graph.number_of_nodes()} node(s), {graph.number_of_edges()} edge(s)")
 
     # -- Phase 8-10: embed + index (dense and sparse) ---------------------
@@ -175,7 +174,7 @@ def _run(scratch_dir: Path) -> None:
     retrieved = hybrid_retriever.retrieve(repository_id, QUERY, query_embedding, top_k=5)
     print(f"[6/9] Hybrid retrieval: {len(retrieved)} candidate(s) for {QUERY!r}")
 
-    graph_expander = GraphExpander(db, graph_dir=graph_dir)
+    graph_expander = GraphExpander(db)
     expanded = graph_expander.expand(repository_id, retrieved)
     print(f"      -> Graph expansion: {len(expanded)} candidate(s) after 1-hop traversal")
 
@@ -223,6 +222,8 @@ def _run(scratch_dir: Path) -> None:
     print(f"\nCache verification - similar follow-up query hit cache: {cache_hit is not None}")
     if cache_hit is not None:
         print(f"  -> served cached answer without re-running retrieval/generation: {cache_hit.response!r}")
+
+    db.drop_schema()
 
 
 if __name__ == "__main__":

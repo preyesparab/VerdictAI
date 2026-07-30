@@ -1,4 +1,4 @@
-"""SQLite persistence adapter for structured metadata (Phase 7-8, 14).
+"""PostgreSQL persistence adapter for structured metadata (Phase 7-8, 14).
 
 `DatabaseManager` is the single public entry point for reading and writing
 everything produced by earlier phases: repository metadata (Phase 2),
@@ -9,8 +9,14 @@ entries from here instead of re-running ingestion or re-embedding, and
 instead of holding onto the in-memory objects a specific pipeline run
 produced.
 
+Backed by PostgreSQL via `psycopg2` (Phase 33 storage migration; originally
+SQLite). `psycopg2` is a synchronous driver, deliberately chosen over
+`asyncpg` so every method here keeps the same blocking `Session` API its
+callers (`pipeline.py`, `api/main.py`, embedding/retrieval modules) already
+depend on - no async rewrite at those call sites.
+
 Every public method wraps exactly one transaction: all rows in a single
-call are committed together, or none are (see `_session_scope`). No
+call are committed together, or none are (see `session_scope`). No
 `sqlalchemy.exc` exception ever escapes this module — every failure is
 re-raised as `core.exceptions.DatabaseError`.
 """
@@ -18,6 +24,7 @@ re-raised as `core.exceptions.DatabaseError`.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,7 +33,7 @@ from pathlib import Path
 
 import networkx as nx
 import numpy as np
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -58,39 +65,51 @@ logger = get_logger(__name__)
 _REPOSITORY_ID_NAMESPACE = uuid.UUID("c9f1a2b3-4d5e-4f6a-8b7c-1d2e3f4a5b6c")
 
 
-def _enable_foreign_keys(dbapi_connection: object, connection_record: object) -> None:
-    """Turn on SQLite's foreign-key enforcement for a new DBAPI connection.
-
-    SQLite ships with foreign-key checks disabled by default for backward
-    compatibility; every `CodeChunkRecord`/`GraphEdgeRecord` FK in
-    `database.models` depends on them being enforced so that an invalid
-    reference fails the transaction instead of being silently written.
-    """
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+_VALID_SCHEMA_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 class DatabaseManager:
-    """Owns the SQLite engine/session for one RepoMind database file.
+    """Owns the PostgreSQL engine/session for one RepoMind database.
 
-    Each instance is bound to a single database file (`db_path`); create
-    one `DatabaseManager` per process (or per test) rather than sharing
-    engines across unrelated databases.
+    Each instance connects to `database_url` (a full database, shared by
+    default across the whole process - PostgreSQL, unlike SQLite, has no
+    single-file-per-database notion). Foreign keys are always enforced by
+    PostgreSQL, unlike SQLite, so no connect-time PRAGMA is needed.
+
+    `schema` scopes every table this instance creates/reads/writes to one
+    PostgreSQL schema within that database via the connection's
+    `search_path`, instead of a schema-qualifying every table in
+    `database.models`. Production code leaves it unset (the connection's
+    default `search_path`, normally ``public``); tests pass a unique
+    per-test schema name so concurrent test runs never see each other's
+    rows, replacing the old one-SQLite-file-per-test-via-`tmp_path`
+    isolation.
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        """Initialize the manager without touching the filesystem yet.
+    def __init__(self, database_url: str | None = None, schema: str | None = None) -> None:
+        """Initialize the manager without touching the database yet.
 
         Args:
-            db_path: Path to the SQLite database file. Defaults to
-                `settings.SQLITE_DB_PATH` (``data/sqlite/repomind.db``).
-                The file and its parent directory are created lazily, by
-                `initialize_database`, not here.
+            database_url: SQLAlchemy connection URL. Defaults to
+                `settings.DATABASE_URL`.
+            schema: If given, every table this instance touches is scoped
+                to this PostgreSQL schema (via `search_path`) instead of
+                the connection's default schema. Must be a valid bare SQL
+                identifier - not user input. The schema itself is not
+                created until `initialize_database` is called.
+
+        Raises:
+            ValueError: If `schema` is not a safe bare identifier.
         """
-        self._db_path = db_path or settings.SQLITE_DB_PATH
-        self._engine: Engine = create_engine(f"sqlite:///{self._db_path}", future=True)
-        event.listens_for(self._engine, "connect")(_enable_foreign_keys)
+        if schema is not None and not _VALID_SCHEMA_NAME.match(schema):
+            raise ValueError(f"Invalid schema name: {schema!r}")
+
+        self._database_url = database_url or settings.DATABASE_URL
+        self._schema = schema
+        connect_args = {"options": f"-csearch_path={schema}"} if schema else {}
+        self._engine: Engine = create_engine(
+            self._database_url, future=True, pool_pre_ping=True, connect_args=connect_args
+        )
         self._session_factory = sessionmaker(bind=self._engine, expire_on_commit=False, future=True)
 
     @staticmethod
@@ -109,24 +128,57 @@ class DatabaseManager:
         return str(uuid.uuid5(_REPOSITORY_ID_NAMESPACE, f"{owner}/{repository_name}"))
 
     def initialize_database(self) -> None:
-        """Create the database file (if needed) and every table in `database.models`.
+        """Create this instance's schema (if given) and every table in `database.models`.
 
         Idempotent: safe to call on an already-initialized database, since
-        `Base.metadata.create_all` only creates tables that do not exist.
+        `CREATE SCHEMA IF NOT EXISTS` and `Base.metadata.create_all` both
+        only create what does not already exist.
 
         Raises:
-            DatabaseError: If the database file or its tables cannot be created.
+            DatabaseError: If the schema or its tables cannot be created.
         """
         try:
-            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._schema:
+                # CREATE SCHEMA must run on a connection whose search_path
+                # doesn't already point at the (possibly not-yet-existing)
+                # target schema, so this uses a separate, schema-agnostic
+                # connection rather than `self._engine`.
+                with create_engine(self._database_url, future=True).connect() as connection:
+                    connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{self._schema}"'))
+                    connection.commit()
             Base.metadata.create_all(self._engine)
-        except (SQLAlchemyError, OSError) as exc:
-            raise DatabaseError(f"Failed to initialize database at {self._db_path}: {exc}") from exc
-        logger.info("Database initialized at %s", self._db_path)
+        except SQLAlchemyError as exc:
+            raise DatabaseError(f"Failed to initialize database (schema={self._schema}): {exc}") from exc
+        logger.info("Database initialized (schema=%s)", self._schema or "default")
+
+    def drop_schema(self) -> None:
+        """Drop this instance's schema and everything in it.
+
+        Only valid for an instance constructed with an explicit `schema`
+        (test isolation); dropping the default/production schema this way
+        is deliberately not supported.
+
+        Raises:
+            DatabaseError: If no `schema` was given, or the drop fails.
+        """
+        if not self._schema:
+            raise DatabaseError("drop_schema() requires a DatabaseManager constructed with an explicit schema")
+        try:
+            with create_engine(self._database_url, future=True).connect() as connection:
+                connection.execute(text(f'DROP SCHEMA IF EXISTS "{self._schema}" CASCADE'))
+                connection.commit()
+        except SQLAlchemyError as exc:
+            raise DatabaseError(f"Failed to drop schema {self._schema}: {exc}") from exc
+        logger.info("Schema dropped: %s", self._schema)
 
     @contextmanager
-    def _session_scope(self) -> Iterator[Session]:
+    def session_scope(self) -> Iterator[Session]:
         """Run one transaction: commit on success, roll back and re-raise on failure.
+
+        Public so `database.graph_store` can share this instance's exact
+        engine/schema (its `GraphSnapshotRecord` has a foreign key into
+        `RepositoryRecord`, so it must use the same connection scope as
+        every other table) rather than opening an independent connection.
 
         Yields:
             A `Session` for the caller to add/query rows on.
@@ -163,7 +215,7 @@ class DatabaseManager:
             DatabaseError: If the write fails.
         """
         repository_id = self.compute_repository_id(repository.owner, repository.name)
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             record = session.get(RepositoryRecord, repository_id)
             if record is None:
                 record = RepositoryRecord(repository_id=repository_id)
@@ -197,7 +249,7 @@ class DatabaseManager:
             DatabaseError: If the write fails.
         """
         stored = 0
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             existing_ids = set(
                 session.scalars(
                     select(SourceFileRecord.file_id).where(
@@ -247,7 +299,7 @@ class DatabaseManager:
                 offending one.
         """
         stored = 0
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             existing_ids = set(
                 session.scalars(
                     select(CodeChunkRecord.chunk_id).where(
@@ -335,7 +387,7 @@ class DatabaseManager:
         """
         stored = 0
         skipped = 0
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             stored_chunk_ids = set(
                 session.scalars(
                     select(CodeChunkRecord.chunk_id).where(
@@ -394,7 +446,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the read fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             record = session.get(RepositoryRecord, repository_id)
             if record is None:
                 return None
@@ -425,7 +477,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the read fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             rows = session.execute(
                 select(CodeChunkRecord, SourceFileRecord.relative_path).join(
                     SourceFileRecord,
@@ -471,7 +523,7 @@ class DatabaseManager:
             DatabaseError: If the read fails.
         """
         graph = nx.DiGraph()
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             chunk_records = session.scalars(
                 select(CodeChunkRecord).where(CodeChunkRecord.repository_id == repository_id)
             )
@@ -524,7 +576,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the read fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             return set(
                 session.scalars(
                     select(EmbeddingRecord.chunk_id).where(
@@ -563,7 +615,7 @@ class DatabaseManager:
                 offending one.
         """
         stored = 0
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             existing_records = {
                 record.chunk_id: record
                 for record in session.scalars(
@@ -619,7 +671,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the read fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             rows = session.execute(
                 select(
                     EmbeddingRecord.chunk_id,
@@ -670,7 +722,7 @@ class DatabaseManager:
             DatabaseError: If the write fails.
         """
         vector = np.asarray(query_embedding, dtype=np.float32)
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             existing = session.execute(
                 select(SemanticCacheRecord).where(
                     SemanticCacheRecord.repository_id == repository_id,
@@ -717,7 +769,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the read fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             records = session.scalars(
                 select(SemanticCacheRecord).where(SemanticCacheRecord.repository_id == repository_id)
             ).all()
@@ -752,7 +804,7 @@ class DatabaseManager:
         Raises:
             DatabaseError: If the deletion fails.
         """
-        with self._session_scope() as session:
+        with self.session_scope() as session:
             records = session.scalars(
                 select(SemanticCacheRecord).where(SemanticCacheRecord.repository_id == repository_id)
             ).all()

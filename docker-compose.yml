@@ -1,11 +1,33 @@
 # RepoMind local development stack
-# Minimal scaffold — additional services (vector store, graph store) will be
-# added as those components are implemented and approved.
+# Minimal scaffold — additional services (vector store) will be added as
+# those components are implemented and approved.
 
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: repomind
+      POSTGRES_PASSWORD: repomind
+      POSTGRES_DB: repomind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repomind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     volumes:
       - ./data:/app/data
     env_file:
       - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

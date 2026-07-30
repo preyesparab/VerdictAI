@@ -1,11 +1,14 @@
-"""SQLAlchemy ORM models for RepoMind's persistence layer.
+"""SQLAlchemy ORM models for RepoMind's PostgreSQL persistence layer.
 
 Mirrors the in-memory dataclasses produced by earlier phases —
 `ingestion.repository_metadata.RepositoryMetadata`, `ingestion.source_file.SourceFile`,
-and `models.schemas.CodeChunk` — plus a table for the knowledge graph built
-in Phase 6 (`graph.graph_builder.RepositoryGraphBuilder`). `database.sqlite_client`
-is the only module that should import these directly; every other layer
-interacts with plain dataclasses through `DatabaseManager`.
+and `models.schemas.CodeChunk` — plus tables for the knowledge graph built
+in Phase 6 (`graph.graph_builder.RepositoryGraphBuilder`): a lossy SQL
+reconstruction queried via `database.sqlite_client.DatabaseManager.load_graph`,
+and the exact persisted snapshot (`GraphSnapshotRecord`) read/written by
+`database.graph_store`. Those two modules are the only ones that should
+import these models directly; every other layer interacts with plain
+dataclasses/`networkx.DiGraph` objects through them.
 
 `file_id` and `chunk_id` (see `ingestion.deterministic_ids`) are derived
 only from a file's repository-relative path, so they are stable across
@@ -19,8 +22,10 @@ primary key and foreign keys by `repository_id` rather than relying on
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -47,7 +52,7 @@ class RepositoryRecord(Base):
     local_path: Mapped[str] = mapped_column(nullable=False)
     default_branch: Mapped[str] = mapped_column(nullable=False)
     current_commit_hash: Mapped[str] = mapped_column(nullable=False)
-    indexed_at: Mapped[datetime] = mapped_column(nullable=False)
+    indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("owner", "repository_name", name="uq_repository_owner_name"),
@@ -164,7 +169,7 @@ class EmbeddingRecord(Base):
     model_name: Mapped[str] = mapped_column(nullable=False)
     embedding_dimension: Mapped[int] = mapped_column(nullable=False)
     embedding_blob: Mapped[bytes] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -200,9 +205,31 @@ class SemanticCacheRecord(Base):
     embedding_dimension: Mapped[int] = mapped_column(nullable=False)
     response: Mapped[str] = mapped_column(nullable=False)
     retrieved_chunk_ids: Mapped[str] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         ForeignKeyConstraint(["repository_id"], ["repositories.repository_id"]),
         UniqueConstraint("repository_id", "query", name="uq_cache_repo_query"),
+    )
+
+
+class GraphSnapshotRecord(Base):
+    """The one persisted `networkx.node_link_data` snapshot per repository (`database.graph_store`).
+
+    Phase 33 storage migration: this table replaces the per-repository
+    JSON file (`data/graph/{owner}_{name}.json`) `database.graph_store`
+    used to read/write directly. `graph_data` stores the exact same
+    `nx.node_link_data(graph)` dict `save_graph` always produced - only
+    where it lives changed, not its shape - so `load_graph`'s round-trip
+    via `nx.node_link_graph` is unaffected.
+    """
+
+    __tablename__ = "graph_snapshots"
+
+    repository_id: Mapped[str] = mapped_column(primary_key=True)
+    graph_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(["repository_id"], ["repositories.repository_id"]),
     )

@@ -88,4 +88,9 @@ def test_data_subdirectories_nest_under_data_dir() -> None:
     settings = Settings(_env_file=None)
     assert settings.REPOSITORIES_DIR.parent == settings.DATA_DIR
     assert settings.INDEXES_DIR.parent == settings.DATA_DIR
-    assert settings.SQLITE_DB_PATH.parent == settings.SQLITE_DIR
+
+
+def test_database_url_defaults_to_local_postgres() -> None:
+    """DATABASE_URL should default to a reachable local dev Postgres instance."""
+    settings = Settings(_env_file=None)
+    assert settings.DATABASE_URL.startswith("postgresql+psycopg2://")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -84,10 +85,11 @@ def _row_count(manager: DatabaseManager, model: type) -> int:
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> DatabaseManager:
-    manager = DatabaseManager(db_path=tmp_path / "test.db")
+def db(pg_schema: str) -> Iterator[DatabaseManager]:
+    manager = DatabaseManager(schema=pg_schema)
     manager.initialize_database()
-    return manager
+    yield manager
+    manager.drop_schema()
 
 
 def _seed_single_chunk(db: DatabaseManager) -> tuple[str, CodeChunk]:
@@ -103,17 +105,19 @@ def _seed_single_chunk(db: DatabaseManager) -> tuple[str, CodeChunk]:
 
 
 class TestInitializeDatabase:
-    def test_creates_database_file(self, tmp_path: Path) -> None:
-        db_path = tmp_path / "nested" / "repomind.db"
-        manager = DatabaseManager(db_path=db_path)
+    def test_creates_schema(self, pg_schema: str) -> None:
+        manager = DatabaseManager(schema=pg_schema)
         manager.initialize_database()
-        assert db_path.exists()
+        try:
+            assert pg_schema in inspect(manager._engine).get_schema_names()  # noqa: SLF001
+        finally:
+            manager.drop_schema()
 
     def test_creates_expected_tables(self, db: DatabaseManager) -> None:
         table_names = set(inspect(db._engine).get_table_names())  # noqa: SLF001
         assert table_names == {
             "repositories", "source_files", "code_chunks", "graph_edges", "embeddings",
-            "semantic_cache",
+            "semantic_cache", "graph_snapshots",
         }
 
     def test_is_idempotent(self, db: DatabaseManager) -> None:

@@ -7,6 +7,7 @@ via real parsing - this module only traverses an already-persisted graph.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -121,28 +122,24 @@ def _build_rich_graph() -> nx.DiGraph:
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> DatabaseManager:
-    manager = DatabaseManager(db_path=tmp_path / "test.db")
+def db(pg_schema: str) -> Iterator[DatabaseManager]:
+    manager = DatabaseManager(schema=pg_schema)
     manager.initialize_database()
-    return manager
+    yield manager
+    manager.drop_schema()
 
 
-@pytest.fixture
-def graph_dir(tmp_path: Path) -> Path:
-    return tmp_path / "graph"
-
-
-def _seed_repository_with_graph(db: DatabaseManager, graph_dir: Path, graph: nx.DiGraph) -> str:
+def _seed_repository_with_graph(db: DatabaseManager, graph: nx.DiGraph) -> str:
     repository = _repository_metadata()
     repository_id = db.store_repository(repository)
-    save_graph(graph, graph_dir / f"{repository.owner}_{repository.name}.json")
+    save_graph(graph, repository_id, db)
     return repository_id
 
 
 class TestFunctionCallExpansion:
-    def test_callee_is_discovered(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_callee_is_discovered(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=1)
 
@@ -153,9 +150,9 @@ class TestFunctionCallExpansion:
         assert callee.retrieval_source == RetrievalSource.GRAPH
         assert callee.score == pytest.approx(0.9 * 0.5)
 
-    def test_caller_is_discovered(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_caller_is_discovered(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("B", 0.9)], max_hops=1)
 
@@ -165,9 +162,9 @@ class TestFunctionCallExpansion:
 
 
 class TestInheritanceExpansion:
-    def test_parent_class_is_discovered_via_inherits(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_parent_class_is_discovered_via_inherits(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("D", 0.8)], max_hops=1)
 
@@ -177,9 +174,9 @@ class TestInheritanceExpansion:
 
 
 class TestContainmentExpansion:
-    def test_child_method_is_discovered_from_class(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_child_method_is_discovered_from_class(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("D", 0.8)], max_hops=1)
 
@@ -187,9 +184,9 @@ class TestContainmentExpansion:
         assert method.edge_type == "contains"
         assert method.graph_distance == 1
 
-    def test_containing_class_is_discovered_from_method(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_containing_class_is_discovered_from_method(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("E", 0.8)], max_hops=1)
 
@@ -199,9 +196,9 @@ class TestContainmentExpansion:
 
 
 class TestImportExpansion:
-    def test_chunk_in_imported_file_is_discovered(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_chunk_in_imported_file_is_discovered(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=1)
 
@@ -212,11 +209,9 @@ class TestImportExpansion:
 
 
 class TestDuplicateRemoval:
-    def test_chunk_reachable_from_two_originals_keeps_the_better_path(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_chunk_reachable_from_two_originals_keeps_the_better_path(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
         # A and D are both in file1, which imports file2 - both reach F via
         # imports expansion. A has a higher score, so F should end up
         # attributed to A, not to D's weaker path.
@@ -229,11 +224,9 @@ class TestDuplicateRemoval:
         assert matches[0].originating_chunk_id == "A"
         assert matches[0].score == pytest.approx(0.9 * 0.5)
 
-    def test_graph_expanded_chunk_never_replaces_an_original(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_graph_expanded_chunk_never_replaces_an_original(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
         # B is both an original hybrid result AND a graph neighbor of A.
         retrieved = [_retrieved("A", 0.9), _retrieved("B", 0.1)]
 
@@ -247,9 +240,9 @@ class TestDuplicateRemoval:
 
 
 class TestDisconnectedNodes:
-    def test_isolated_chunk_produces_no_expansions(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_isolated_chunk_produces_no_expansions(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("Z", 0.6)], max_hops=1)
 
@@ -257,11 +250,9 @@ class TestDisconnectedNodes:
         assert results[0].chunk_id == "Z"
         assert results[0].graph_distance == 0
 
-    def test_chunk_not_present_in_graph_produces_no_expansions(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_chunk_not_present_in_graph_produces_no_expansions(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("never-indexed", 0.5)], max_hops=1)
 
@@ -271,18 +262,18 @@ class TestDisconnectedNodes:
 
 
 class TestEmptyGraph:
-    def test_empty_graph_returns_only_originals(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, nx.DiGraph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_empty_graph_returns_only_originals(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, nx.DiGraph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("anything", 0.5)], max_hops=1)
 
         assert len(results) == 1
         assert results[0].graph_distance == 0
 
-    def test_empty_retrieved_chunks_returns_empty_list(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_empty_retrieved_chunks_returns_empty_list(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [], max_hops=1)
 
@@ -290,19 +281,17 @@ class TestEmptyGraph:
 
 
 class TestConfigurableHopCount:
-    def test_two_hop_neighbor_absent_at_max_hops_one(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_two_hop_neighbor_absent_at_max_hops_one(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         results = expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=1)
 
         assert not any(r.chunk_id == "G" for r in results)
 
-    def test_two_hop_neighbor_present_at_max_hops_two_with_compounded_decay(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir, decay_factor=0.5)
+    def test_two_hop_neighbor_present_at_max_hops_two_with_compounded_decay(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db, decay_factor=0.5)
 
         results = expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=2)
 
@@ -311,20 +300,18 @@ class TestConfigurableHopCount:
         assert deep.originating_chunk_id == "B"
         assert deep.score == pytest.approx(0.9 * 0.5 * 0.5)
 
-    def test_raises_on_non_positive_max_hops(self, db: DatabaseManager, graph_dir: Path) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+    def test_raises_on_non_positive_max_hops(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db)
 
         with pytest.raises(RetrievalError):
             expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=0)
 
 
 class TestPriorityGuarantee:
-    def test_original_outranks_expansion_regardless_of_numeric_score(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
-        repository_id = _seed_repository_with_graph(db, graph_dir, _build_rich_graph())
-        expander = GraphExpander(db, graph_dir=graph_dir, decay_factor=0.9)
+    def test_original_outranks_expansion_regardless_of_numeric_score(self, db: DatabaseManager) -> None:
+        repository_id = _seed_repository_with_graph(db, _build_rich_graph())
+        expander = GraphExpander(db, decay_factor=0.9)
         # A weak original (score 0.01) alongside a strong original (score
         # 100) whose decayed neighbor (100 * 0.9 = 90) would numerically
         # exceed the weak original if sorted by score alone.
@@ -338,16 +325,14 @@ class TestPriorityGuarantee:
 
 
 class TestValidation:
-    def test_raises_when_graph_file_is_missing(self, db: DatabaseManager, graph_dir: Path) -> None:
+    def test_raises_when_graph_snapshot_is_missing(self, db: DatabaseManager) -> None:
         repository_id = db.store_repository(_repository_metadata())
-        expander = GraphExpander(db, graph_dir=graph_dir)
+        expander = GraphExpander(db)
 
         with pytest.raises(RetrievalError):
             expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=1)
 
-    def test_raises_on_corrupted_graph_with_invalid_node_reference(
-        self, db: DatabaseManager, graph_dir: Path
-    ) -> None:
+    def test_raises_on_corrupted_graph_with_invalid_node_reference(self, db: DatabaseManager) -> None:
         graph = nx.DiGraph()
         _file_node(graph, "file1")
         _chunk_node(graph, "A", "file1", function_name="handler")
@@ -355,14 +340,14 @@ class TestValidation:
         # never added with attributes (NetworkX materializes it silently
         # with none, rather than raising).
         graph.add_edge("A", "phantom-node", edge_type="function_call")
-        repository_id = _seed_repository_with_graph(db, graph_dir, graph)
-        expander = GraphExpander(db, graph_dir=graph_dir)
+        repository_id = _seed_repository_with_graph(db, graph)
+        expander = GraphExpander(db)
 
         with pytest.raises(RetrievalError):
             expander.expand(repository_id, [_retrieved("A", 0.9)], max_hops=1)
 
-    def test_decay_factor_must_be_between_zero_and_one_exclusive(self, db: DatabaseManager, graph_dir: Path) -> None:
+    def test_decay_factor_must_be_between_zero_and_one_exclusive(self, db: DatabaseManager) -> None:
         with pytest.raises(ValueError):
-            GraphExpander(db, graph_dir=graph_dir, decay_factor=1.0)
+            GraphExpander(db, decay_factor=1.0)
         with pytest.raises(ValueError):
-            GraphExpander(db, graph_dir=graph_dir, decay_factor=0.0)
+            GraphExpander(db, decay_factor=0.0)

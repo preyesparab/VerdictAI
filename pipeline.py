@@ -217,7 +217,7 @@ class Pipeline:
 
         Args:
             db: Persistence layer. Defaults to a new `DatabaseManager`
-                (`settings.SQLITE_DB_PATH`). Overridable for testing.
+                (`settings.DATABASE_URL`). Overridable for testing.
         """
         settings.ensure_directories()
 
@@ -293,7 +293,7 @@ class Pipeline:
             all_ast_chunks = [chunk for result in chunking_results.values() for chunk in result.ast_chunks]
             graph = RepositoryGraphBuilder().build_graph(source_files, all_ast_chunks)
             self._db.store_graph(repository_id, graph)
-            save_graph(graph, path=self._graph_path(repository))
+            save_graph(graph, repository_id, self._db)
             _report(INDEXING_STAGES[3], "complete")
 
             _report(INDEXING_STAGES[4], "running")
@@ -347,10 +347,6 @@ class Pipeline:
                 continue
             results[key] = self._semantic_chunker.build_chunks(source_file, parsed_chunks[key])
         return results
-
-    def _graph_path(self, repository: RepositoryMetadata):
-        """The per-repository graph JSON path `GraphExpander` expects (see its module docstring)."""
-        return settings.GRAPH_DIR / f"{repository.owner}_{repository.name}.json"
 
     # -- Querying ----------------------------------------------------------
 
