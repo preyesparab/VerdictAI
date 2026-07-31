@@ -14,4 +14,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "app.py"]
+EXPOSE 8000
+
+# Shell form (not exec-form CMD) is required here: Render injects the
+# listen port via the $PORT env var at container start, and exec-form CMD
+# (CMD ["uvicorn", ...]) never expands env vars - only a shell does that.
+# `exec` hands PID 1 to uvicorn itself (rather than leaving it as a child
+# of /bin/sh), so SIGTERM from Render's stop/redeploy still reaches it
+# directly for a clean shutdown. ${PORT:-8000} falls back to 8000 for
+# local `docker run`/docker-compose, where $PORT is unset.
+CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
