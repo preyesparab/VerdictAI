@@ -70,8 +70,7 @@ class EmbeddingManager:
                 `embedding.model_loader.load_embedding_model`.
             model_name: Embedding model identifier to load and to tag
                 stored embeddings with. Defaults to
-                `embedding.model_loader.active_model_name()` (selected by
-                `settings.USE_CODEBERT`).
+                `embedding.model_loader.active_model_name()`.
             batch_size: Chunks per `model.encode()` call. Defaults to
                 `settings.EMBEDDING_BATCH_SIZE`.
         """

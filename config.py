@@ -69,10 +69,6 @@ class Settings(BaseSettings):
     # retrieval strategies can be enabled, disabled, and benchmarked in
     # isolation once they are implemented in later phases.
     # ------------------------------------------------------------------
-    USE_CODEBERT: bool = Field(
-        default=True,
-        description="Enable CodeBERT-based dense embeddings for retrieval.",
-    )
     USE_BM25: bool = Field(
         default=True,
         description="Enable BM25 sparse retrieval.",

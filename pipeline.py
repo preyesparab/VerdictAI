@@ -446,7 +446,7 @@ class Pipeline:
         Args:
             query: A search phrase (need not be a natural-language
                 question - identifier-heavy phrases work well against
-                `USE_CODEBERT`'s code embeddings).
+                the Gemini embedding model's code embeddings).
             repo_id: The repository to search - must already be indexed.
 
         Returns:

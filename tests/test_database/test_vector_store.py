@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.constants import DEFAULT_MINILM_MODEL
+from core.constants import DEFAULT_EMBEDDING_MODEL, EMBEDDING_OUTPUT_DIMENSIONALITY
 from core.exceptions import RetrievalError
 from database.sqlite_client import DatabaseManager
 from database.vector_store import FaissIndexManager
@@ -108,18 +108,18 @@ class TestBuildIndex:
 
     def test_handles_empty_repository_gracefully(self, db: DatabaseManager, indexes_dir: Path) -> None:
         repository_id = db.store_repository(_repository_metadata())
-        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_MINILM_MODEL)
+        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_EMBEDDING_MODEL)
 
         count = manager.build_index(repository_id)
 
         assert count == 0
 
     def test_raises_on_dimension_mismatch(self, db: DatabaseManager, indexes_dir: Path) -> None:
-        # DEFAULT_MINILM_MODEL expects 384 dimensions; 10 is deliberately wrong.
+        # DEFAULT_EMBEDDING_MODEL expects EMBEDDING_OUTPUT_DIMENSIONALITY (768) dimensions; 10 is deliberately wrong.
         repository_id, _chunks, _vectors = _seed_chunks_with_embeddings(
-            db, DEFAULT_MINILM_MODEL, count=1, dimension=10
+            db, DEFAULT_EMBEDDING_MODEL, count=1, dimension=10
         )
-        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_MINILM_MODEL)
+        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_EMBEDDING_MODEL)
 
         with pytest.raises(RetrievalError):
             manager.build_index(repository_id)
@@ -194,10 +194,10 @@ class TestSearch:
 
     def test_empty_index_search_returns_empty_list(self, db: DatabaseManager, indexes_dir: Path) -> None:
         repository_id = db.store_repository(_repository_metadata())
-        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_MINILM_MODEL)
+        manager = FaissIndexManager(db, indexes_dir=indexes_dir, model_name=DEFAULT_EMBEDDING_MODEL)
         manager.build_index(repository_id)
 
-        results = manager.search(np.zeros(384, dtype=np.float32), top_k=5)
+        results = manager.search(np.zeros(EMBEDDING_OUTPUT_DIMENSIONALITY, dtype=np.float32), top_k=5)
 
         assert results == []
 

@@ -70,9 +70,20 @@ DEFAULT_LOGS_DIR_NAME: Final[str] = "logs"
 # Fixed fallback identifiers for models used in later phases. These are
 # intentionally not environment-configurable in this phase — only the
 # feature flags that enable/disable the components using them are.
+#
+# DEFAULT_EMBEDDING_MODEL was originally a locally-loaded CodeBERT model
+# (`microsoft/codebert-base`, via `sentence-transformers`) - replaced with
+# Google's hosted Gemini embedding API to remove the 500MB+ resident-memory
+# cost of loading a transformer in-process, which was causing the Render
+# deployment to run out of memory (see docs/state/PROGRESS.md). This is a
+# breaking change to any previously-stored embedding: the vector space and
+# dimension are both different, so every previously-indexed repository
+# must be re-indexed (`EmbeddingManager.generate_embeddings(..., force=True)`
+# followed by a fresh `FaissIndexManager.build_index`) - there is no
+# migration path between the two, by design (pre-launch, nothing indexed
+# needs to survive).
 # ---------------------------------------------------------------------
-DEFAULT_EMBEDDING_MODEL: Final[str] = "microsoft/codebert-base"
-DEFAULT_MINILM_MODEL: Final[str] = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_EMBEDDING_MODEL: Final[str] = "gemini-embedding-001"
 DEFAULT_RERANKER_MODEL: Final[str] = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 DEFAULT_OLLAMA_MODEL: Final[str] = "mistral"
 DEFAULT_GEMINI_MODEL: Final[str] = "gemini-2.5-flash"
@@ -81,11 +92,20 @@ DEFAULT_GROQ_MODEL: Final[str] = "llama-3.3-70b-versatile"
 # ---------------------------------------------------------------------
 # Embedding dimensions
 #
-# Fixed output dimensionality of each supported embedding model, used by
+# EMBEDDING_OUTPUT_DIMENSIONALITY is requested from the Gemini embedding
+# API via `EmbedContentConfig.output_dimensionality` - the API truncates
+# server-side using the model's own Matryoshka (MRL) training, not a naive
+# post-hoc slice, so a truncated vector stays meaningful. 768 was chosen
+# over the model's native 3072 to keep FAISS index size/search cost down;
+# 1536/3072 remain available by raising this constant alone.
+#
+# EMBEDDING_DIMENSIONS is the fixed output dimensionality of each
+# supported embedding model, used by
 # `embedding.embedding_manager.EmbeddingManager` to validate that a
 # model's output matches what is expected before persisting it.
 # ---------------------------------------------------------------------
+EMBEDDING_OUTPUT_DIMENSIONALITY: Final[int] = 768
+
 EMBEDDING_DIMENSIONS: Final[dict[str, int]] = {
-    DEFAULT_EMBEDDING_MODEL: 768,
-    DEFAULT_MINILM_MODEL: 384,
+    DEFAULT_EMBEDDING_MODEL: EMBEDDING_OUTPUT_DIMENSIONALITY,
 }

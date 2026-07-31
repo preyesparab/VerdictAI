@@ -72,9 +72,8 @@ class FaissIndexManager:
                 sidecars are stored in. Defaults to `settings.INDEXES_DIR`
                 (``data/indexes``).
             model_name: Which model's embeddings to index. Defaults to
-                `embedding.model_loader.active_model_name()` (selected by
-                `settings.USE_CODEBERT`) - should match whatever model
-                `EmbeddingManager` was run with.
+                `embedding.model_loader.active_model_name()` - should
+                match whatever model `EmbeddingManager` was run with.
         """
         self._db = db
         self._indexes_dir = indexes_dir or settings.INDEXES_DIR

@@ -1,8 +1,10 @@
 """Client wrapper for calling the underlying LLM provider (Phase 16; Gemini update; Groq added Phase 27 follow-up).
 
-`LLMClient` is the *only* place in this system that imports the
-`google-genai`, `groq`, or `ollama` SDKs, and the only place a real
-network call to any provider happens. Provider selection is a static,
+`LLMClient` is the only place in this system that imports the `google-genai`,
+`groq`, or `ollama` SDKs *for generation* - `embedding.model_loader` also
+imports `google-genai`, independently, to call Gemini's hosted embedding API
+(a separate concern from LLM completions, with its own error boundary into
+`EmbeddingError` rather than `LLMGenerationError`). Provider selection is a static,
 config-driven priority - not automatic retry-on-failure between
 providers:
 

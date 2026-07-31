@@ -23,11 +23,20 @@ SQLAlchemy>=2.0,<3
 psycopg2-binary>=2.9,<3
 
 # Phase 8 — Embedding Generation
-sentence-transformers>=3.0,<4
+# Embeddings are generated through the hosted Gemini API (see
+# embedding/model_loader.py) - no local embedding model/dependency needed
+# here anymore. google-genai is already required below (Phase 16).
 numpy>=1.26,<2
+
+# Phase 13 — Cross-Encoder Re-ranking
+# sentence-transformers/torch moved here from Phase 8: CrossEncoder
+# (retrieval/reranker.py) is the only remaining local-transformer
+# consumer in this codebase - removing Phase 8's CodeBERT/MiniLM
+# embedding model did NOT remove this dependency.
+sentence-transformers>=3.0,<4
 # torch is a transitive dep of sentence-transformers, but pinned explicitly
 # here: transformers>=5 refuses (CVE-2025-32434) to torch.load non-
-# safetensors weights (e.g. microsoft/codebert-base) on torch<2.6.
+# safetensors weights on torch<2.6.
 torch>=2.6,<3
 
 # Phase 9 — FAISS Vector Index

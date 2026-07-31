@@ -4266,3 +4266,163 @@ each step, reported before proceeding), not as one rewrite.
   (Vercel/Render hosting, sandboxed verifier hosting) - roadmap left at
   🟡 (in progress) rather than flipped to ✅, since the phase as a whole
   (deployment) is not complete, only its storage-layer prerequisite.
+
+## Phase 33 (deployment-blocker slice) — local CodeBERT embeddings → hosted Gemini embedding API
+
+Driven by a real Render OOM during deployment: loading `microsoft/codebert-base`
+locally (`embedding/model_loader.py`, via `sentence-transformers`/`torch`) cost
+far more resident memory than Render's instance had available. Replaced with
+Google's hosted Gemini embedding API - same motivation and shape as Phase 16's
+earlier LLM-provider move to a hosted API, applied to embeddings.
+
+- **Model check done live before writing code, per instructions.**
+  `google-genai==2.10.0` (installed, both `.venv` and base env) was queried
+  for real via `client.models.list()` against the project's actual
+  `GEMINI_API_KEY` - not assumed from docs/memory. `text-embedding-004`
+  (the name floated at the start of this task, and the only name in the
+  SDK's own docstring example) **is not in the live list** - it's retired.
+  Live-available: `gemini-embedding-001` (GA, chosen), `gemini-embedding-2`,
+  `gemini-embedding-2-preview` (both multimodal, unneeded here).
+  `gemini-embedding-001` defaults to 3072-dim; live-verified
+  `EmbedContentConfig(output_dimensionality=768)` truncation works
+  (Matryoshka/MRL-trained, not a naive slice) - 768 chosen over 1536/3072 to
+  keep FAISS index size/search cost down, matching the existing
+  768/384-dim pattern in `core.constants.EMBEDDING_DIMENSIONS`.
+- **Three design decisions confirmed with the user before implementing**
+  (all three recommended options accepted): output dimension 768; drop
+  `USE_CODEBERT`/MiniLM fallback entirely rather than keep it opt-in (Gemini
+  API is now the only embedding path - no local fallback); skip asymmetric
+  `task_type` (`RETRIEVAL_DOCUMENT`/`RETRIEVAL_QUERY`/`CODE_RETRIEVAL_QUERY`,
+  all three live-verified as accepted) for now, in favor of zero call-site
+  changes - flagged as an easy future quality follow-up, not done here.
+- **`embedding/model_loader.py` rewritten, same interface, real behavior
+  change underneath.** `GeminiEmbeddingModel` adapts
+  `google.genai.Client.models.embed_content` behind the exact
+  `.encode(sentences, **kwargs) -> np.ndarray` shape
+  `sentence_transformers.SentenceTransformer` used to expose (`**kwargs`
+  like `convert_to_numpy`/`show_progress_bar` accepted and ignored) - so
+  `EmbeddingManager`, `SemanticCacheManager`, and `pipeline.py`'s
+  `_embed_query` needed zero changes beyond the new dimension. Inference
+  failures are deliberately left unwrapped from `GeminiEmbeddingModel.encode`
+  itself (every caller already wraps `model.encode(...)` failures into its
+  own exception type at its own boundary - matches the existing per-module
+  error-boundary pattern rather than double-wrapping).
+- **`generation/llm_client.py`'s "only place that imports google-genai"
+  claim was factually broken by this change** - caught and fixed in its own
+  docstring rather than left stale, since `embedding.model_loader` now
+  independently constructs its own `genai.Client` too (kept independent,
+  not shared, so a construction failure still wraps into the right
+  exception type per module - `EmbeddingError` here, `LLMGenerationError`
+  there).
+- **Breaking change, no migration path - by design, not an oversight.**
+  Different vector space, different dimension (768 Gemini vs. 768 CodeBERT/
+  384 MiniLM coincidentally-same-looking-but-incompatible numbers) -
+  `core.constants`'s module comment documents that every previously-indexed
+  repository needs `EmbeddingManager.generate_embeddings(..., force=True)` +
+  a fresh `FaissIndexManager.build_index`. Confirmed pre-launch with the
+  user: no migration script written, matching this project's stated
+  practice of not building for data that doesn't need to survive.
+- **`retrieval/reranker.py` still needs `sentence-transformers`/`torch` -
+  requirements.txt re-attributed, not removed.** Checked before touching
+  requirements.txt (per this session's standing quota/verification
+  discipline - confirm before assuming): `CrossEncoderReranker` is an
+  independent local-transformer consumer, `USE_RERANKER=True` by default.
+  The Phase 8 comment block moved to a new Phase 13 block explaining
+  `sentence-transformers`/`torch` stay for this reason - the OOM fix from
+  this change alone is partial, not total, and step 6 below quantifies
+  exactly how much.
+- **Regression suite: 695 passed, 0 failed, 0 errors** (up from 693 pre-
+  existing - two new call sites' worth of test coverage:
+  `tests/test_embedding/test_model_loader.py` rewritten entirely around a
+  fake `genai.Client`/`embed_content`, not real network calls;
+  `test_embedding_manager.py`'s CodeBERT/MiniLM two-model-class split
+  collapsed into one, since there's only one model now;
+  `test_database/test_vector_store.py` and `test_config.py` swept for the
+  removed `DEFAULT_MINILM_MODEL`/`USE_CODEBERT`). First full run showed "1
+  failed, 566 passed, 128 errors" - misleading: local Postgres wasn't
+  running (Docker Desktop wasn't started this session), so the 128 errors
+  were `pg_schema` fixture failures, and the "1 failed" never reproduced
+  again once Postgres was actually up - not a real regression, a false
+  signal from a down dependency.
+- **Real, live re-index of `tartley/colorama` against Gemini embeddings -
+  hit two genuine operational issues worth recording, not glossed over:**
+  1. **Gemini's free-tier embedding quota is metered per text embedded, not
+     per API call** (`embed_content_free_tier_requests`, ~100/minute) - the
+     SDK batches a whole `contents` list into one `batchEmbedContents` HTTP
+     call, but each text inside still consumes one quota unit. With
+     `EMBEDDING_BATCH_SIZE=32`, colorama's 161 AST chunks exhausted the
+     free-tier quota after 3 batches (96 texts) plus this session's own
+     earlier live model-check calls. Recovered cleanly with no code change -
+     `EmbeddingManager`'s existing skip-already-embedded logic resumed from
+     chunk 97 after the documented ~51s cooldown - but this is a real
+     constraint worth the user knowing before re-indexing anything larger
+     than a small repo on the free tier: not fixed here (retry/backoff
+     wasn't asked for and wasn't added unasked), only surfaced.
+  2. **`retrieval/reranker.py`'s CrossEncoder load crashed the process
+     natively (no Python traceback, no exception, process just exits)** -
+     reproduced twice, always at the same point (`Reranking started: 96
+     candidate(s)`, right as `CrossEncoder(...)` constructs), but **not**
+     reproducible in three separate minimal repros of the same import/call
+     sequence (`faiss` + one or two real `genai.Client`/`embed_content`
+     calls + `CrossEncoder` load, with and without
+     `sqlalchemy`/`psycopg2`/`networkx`/`rank_bm25` also imported) - all
+     three isolated repros succeeded cleanly. Root cause not conclusively
+     identified (best guess: transient memory/resource pressure from
+     Docker Desktop's own startup coinciding with the first crash, given
+     4.1GB free RAM of 15.4GB total at the time - not re-tested under
+     confirmed-idle conditions). Worked around for this verification only
+     by setting `settings.USE_RERANKER = False` in the (temporary, not
+     committed to the app) verification script - this is a pre-existing
+     local-environment fragility in the reranker's own dependency stack,
+     unrelated to and not introduced by this embedding change (every
+     retrieval stage *before* reranking - dense, sparse, hybrid fusion,
+     graph expansion, semantic cache - completed successfully against real
+     Gemini embeddings in every run, crashed or not), flagged for separate
+     investigation rather than fixed here.
+  3. With reranking disabled, real grounded/cited answers confirmed: "How
+     does colorama strip ANSI codes on Windows?" → correct, detailed answer
+     citing `colorama/ansitowin32.py`'s `AnsiToWin32.__init__`/
+     `write_and_convert` and the real `ANSI_CSI_RE`/`ANSI_OSC_RE` regexes,
+     plus `colorama/tests/ansitowin32_test.py`'s actual
+     `testWriteAndConvertStripsAllValidAnsi` test - genuinely grounded, not
+     hallucinated, chunk_ids resolved to real code. A second query ("What
+     does the AnsiToWin32 class do?") correctly returned "the repository
+     does not contain enough information" rather than hallucinating, when
+     the specific class chunk didn't survive un-reranked RRF fusion into
+     the top 8 - honest refusal, not a bug, and a concrete illustration of
+     what the disabled reranker normally buys.
+- **Memory footprint - measured with `psutil`, real RSS deltas, not
+  estimated** (temporarily installed in `.venv` for this measurement only,
+  not added to `requirements.txt`): loading the **old** local CodeBERT path
+  (`sentence-transformers`/`transformers`/`torch`, post-`faiss`+`numpy`
+  import) cost **879 MB** RSS delta (927 MB total process RSS afterward) -
+  higher than this task's own "~500MB+" framing, not lower. The **new**
+  Gemini-client path costs **76 MB** RSS delta (126.5 MB total) - a
+  measured **~800 MB (~86%) reduction** for the embedding path specifically.
+  The still-local reranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`) costs
+  its own **394 MB** RSS delta (442.6 MB total) - smaller than CodeBERT
+  (fewer params) but not eliminated, so **this change alone does not fully
+  resolve the Render OOM** if the reranker stays enabled there; it removes
+  the larger of the two local-model costs and leaves the smaller one.
+  Whether ~440 MB plus the rest of a FastAPI/uvicorn process fits Render's
+  instance is the open question for whoever deploys next - not re-verified
+  against an actual Render instance in this session (local measurement only).
+- **`.env.example` had live Render Postgres credentials pasted into it**
+  (unrelated to this task, found incidentally via `git diff` before editing
+  the same file) - flagged to the user, not committed or removed
+  unilaterally; only the now-dead `USE_CODEBERT=true` line was removed from
+  it as part of this change.
+- Files touched: `core/constants.py`, `config.py`,
+  `embedding/model_loader.py` (rewritten), `embedding/embedding_manager.py`
+  (docstring), `embedding/__init__.py` (docstring),
+  `retrieval/semantic_cache.py` (docstring), `database/vector_store.py`
+  (docstring), `generation/llm_client.py` (docstring),
+  `pipeline.py` (docstring), `scripts/demo_phase16_end_to_end.py`,
+  `requirements.txt`, `.env.example`,
+  `tests/test_embedding/test_model_loader.py` (rewritten),
+  `tests/test_embedding/test_embedding_manager.py`,
+  `tests/test_database/test_vector_store.py`, `tests/test_config.py`.
+- Not done (deliberately, per the task): a migration script for existing
+  indexed data (see above); retry/backoff for the free-tier rate limit;
+  fixing the reranker's native crash; re-verifying actual Render memory
+  post-deploy.

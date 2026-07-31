@@ -37,14 +37,13 @@ from pathlib import Path
 # default. Add it before importing any project package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.constants import DEFAULT_MINILM_MODEL  # noqa: E402
 from core.exceptions import ParsingError  # noqa: E402
 from core.logging import get_logger  # noqa: E402
 from database.graph_store import save_graph  # noqa: E402
 from database.sqlite_client import DatabaseManager  # noqa: E402
 from database.vector_store import FaissIndexManager  # noqa: E402
 from embedding.embedding_manager import EmbeddingManager  # noqa: E402
-from embedding.model_loader import load_embedding_model  # noqa: E402
+from embedding.model_loader import active_model_name, load_embedding_model  # noqa: E402
 from generation.answer_generator import LLMService  # noqa: E402
 from generation.context_builder import ContextBuilder  # noqa: E402
 from generation.llm_client import LLMCompletion  # noqa: E402
@@ -65,11 +64,12 @@ logger = get_logger(__name__)
 REPOSITORY_URL = "https://github.com/navdeep-G/samplemod"
 QUERY = "What does the hmm function do?"
 
-# Kept small/cached deliberately so this demo runs in seconds without
-# downloading multi-hundred-MB models: MiniLM (dense embeddings) and the
-# default MiniLM cross-encoder reranker are both already present in the
-# local HuggingFace cache.
-EMBEDDING_MODEL_NAME = DEFAULT_MINILM_MODEL
+# Embeddings now go through the hosted Gemini API (no local model to
+# download/cache) - this call requires a real GEMINI_API_KEY and network
+# access, unlike the rest of this demo's local-only components. The
+# cross-encoder reranker is unaffected and stays local (already present
+# in the HuggingFace cache).
+EMBEDDING_MODEL_NAME = active_model_name()
 
 
 class _StubLLMClient:

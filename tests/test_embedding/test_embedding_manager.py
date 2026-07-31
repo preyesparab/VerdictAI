@@ -2,7 +2,7 @@
 
 Model inference is mocked throughout via `_FakeModel` - these tests verify
 batching, skip/force logic, dimension validation, and SQLite persistence,
-not real CodeBERT/MiniLM inference.
+not real Gemini API inference.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MINILM_MODEL
+from core.constants import DEFAULT_EMBEDDING_MODEL, EMBEDDING_OUTPUT_DIMENSIONALITY
 from core.exceptions import EmbeddingError
 from database.sqlite_client import DatabaseManager
 from embedding.embedding_manager import EmbeddingManager
@@ -109,36 +109,22 @@ def _seed_repository_with_chunks(
     return repository_id
 
 
-class TestGenerateEmbeddingsWithMiniLM:
+class TestGenerateEmbeddings:
     def test_embeds_ast_chunks_and_persists(self, db: DatabaseManager) -> None:
         chunks = [
             _chunk("f", "src/a.py", function_name="a"),
             _chunk("f", "src/a.py", function_name="b", start_line=6, end_line=10),
         ]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL, batch_size=10)
-
-        stored = manager.generate_embeddings(repository_id)
-
-        assert stored == 2
-        embeddings = db.load_embeddings(repository_id, DEFAULT_MINILM_MODEL)
-        assert set(embeddings) == {str(c.chunk_id) for c in chunks}
-        assert all(vector.shape == (384,) for vector in embeddings.values())
-
-
-class TestGenerateEmbeddingsWithCodeBERT:
-    def test_embeds_ast_chunks_and_persists(self, db: DatabaseManager) -> None:
-        chunks = [_chunk("f", "src/a.py", function_name="a")]
-        repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=768)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
         manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL, batch_size=10)
 
         stored = manager.generate_embeddings(repository_id)
 
-        assert stored == 1
+        assert stored == 2
         embeddings = db.load_embeddings(repository_id, DEFAULT_EMBEDDING_MODEL)
-        assert next(iter(embeddings.values())).shape == (768,)
+        assert set(embeddings) == {str(c.chunk_id) for c in chunks}
+        assert all(vector.shape == (EMBEDDING_OUTPUT_DIMENSIONALITY,) for vector in embeddings.values())
 
 
 class TestOnlyAstChunksAreEmbedded:
@@ -153,8 +139,8 @@ class TestOnlyAstChunksAreEmbedded:
         repository_id = _seed_repository_with_chunks(
             db, [ast_chunk], sliding_chunks=[sliding_chunk], parent_chunks=[parent_chunk]
         )
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         stored = manager.generate_embeddings(repository_id)
 
@@ -166,8 +152,8 @@ class TestOnlyAstChunksAreEmbedded:
             "f", "src/a.py", chunk_type=ChunkType.SLIDING, function_name=None, start_line=1, end_line=50
         )
         repository_id = _seed_repository_with_chunks(db, [], sliding_chunks=[sliding_chunk])
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         stored = manager.generate_embeddings(repository_id)
 
@@ -179,8 +165,8 @@ class TestDuplicatePrevention:
     def test_second_call_skips_already_embedded_chunks(self, db: DatabaseManager) -> None:
         chunks = [_chunk("f", "src/a.py", function_name="a")]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         first = manager.generate_embeddings(repository_id)
         second = manager.generate_embeddings(repository_id)
@@ -188,22 +174,22 @@ class TestDuplicatePrevention:
         assert first == 1
         assert second == 0
         assert len(model.encode_calls) == 1
-        assert len(db.load_embeddings(repository_id, DEFAULT_MINILM_MODEL)) == 1
+        assert len(db.load_embeddings(repository_id, DEFAULT_EMBEDDING_MODEL)) == 1
 
 
 class TestForceRegeneration:
     def test_force_reembeds_and_overwrites_without_duplicating(self, db: DatabaseManager) -> None:
         chunks = [_chunk("f", "src/a.py", function_name="a")]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
         manager.generate_embeddings(repository_id)
 
         second = manager.generate_embeddings(repository_id, force=True)
 
         assert second == 1
         assert len(model.encode_calls) == 2
-        assert len(db.load_embeddings(repository_id, DEFAULT_MINILM_MODEL)) == 1
+        assert len(db.load_embeddings(repository_id, DEFAULT_EMBEDDING_MODEL)) == 1
 
 
 class TestBatchProcessing:
@@ -213,8 +199,8 @@ class TestBatchProcessing:
             for i in range(1, 6)
         ]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL, batch_size=2)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL, batch_size=2)
 
         stored = manager.generate_embeddings(repository_id)
 
@@ -232,8 +218,8 @@ class TestBatchProcessing:
             for i in range(1, 5)
         ]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         manager.generate_embeddings(repository_id)
 
@@ -244,8 +230,8 @@ class TestValidation:
     def test_wrong_dimension_raises_embedding_error(self, db: DatabaseManager) -> None:
         chunks = [_chunk("f", "src/a.py", function_name="a")]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=10)  # wrong for MiniLM (384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=10)  # wrong for the active model (768)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         with pytest.raises(EmbeddingError):
             manager.generate_embeddings(repository_id)
@@ -258,7 +244,7 @@ class TestValidation:
             def encode(self, sentences: list[str], **kwargs: object) -> None:
                 raise RuntimeError("model exploded")
 
-        manager = EmbeddingManager(db, model=_RaisingModel(), model_name=DEFAULT_MINILM_MODEL)
+        manager = EmbeddingManager(db, model=_RaisingModel(), model_name=DEFAULT_EMBEDDING_MODEL)
 
         with pytest.raises(EmbeddingError):
             manager.generate_embeddings(repository_id)
@@ -268,8 +254,8 @@ class TestLazyModelLoading:
     def test_model_loader_is_not_invoked_when_model_is_injected(self, db: DatabaseManager) -> None:
         chunks = [_chunk("f", "src/a.py", function_name="a")]
         repository_id = _seed_repository_with_chunks(db, chunks)
-        model = _FakeModel(dimension=384)
-        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_MINILM_MODEL)
+        model = _FakeModel(dimension=EMBEDDING_OUTPUT_DIMENSIONALITY)
+        manager = EmbeddingManager(db, model=model, model_name=DEFAULT_EMBEDDING_MODEL)
 
         manager.generate_embeddings(repository_id)
 

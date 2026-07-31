@@ -204,10 +204,10 @@ class SemanticCacheManager:
                 `embedding.model_loader.load_embedding_model`.
             model_name: Embedding model identifier to load and to embed
                 queries with. Defaults to
-                `embedding.model_loader.active_model_name()` (selected by
-                `settings.USE_CODEBERT`) - should match whatever model
-                chunks were embedded with, so cache similarity is
-                measured on the same embedding space retrieval uses.
+                `embedding.model_loader.active_model_name()` - should
+                match whatever model chunks were embedded with, so cache
+                similarity is measured on the same embedding space
+                retrieval uses.
             similarity_threshold: Minimum cosine similarity for a cache
                 hit. Defaults to `settings.CACHE_SIMILARITY_THRESHOLD`.
         """

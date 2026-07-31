@@ -40,7 +40,6 @@ def test_rejects_out_of_range_llm_temperature() -> None:
 def test_feature_flags_default_true_except_ollama() -> None:
     """Every retrieval feature and Gemini default on; Ollama defaults off (opt-in local LLM)."""
     settings = Settings(_env_file=None)
-    assert settings.USE_CODEBERT is True
     assert settings.USE_BM25 is True
     assert settings.USE_RERANKER is True
     assert settings.USE_GRAPH_EXPANSION is True
